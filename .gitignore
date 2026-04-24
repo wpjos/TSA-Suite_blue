@@ -146,3 +146,7 @@ _dataset
 /model/
 /test/resources/
 /tests/resources/
+
+
+# For clean
+/replace.py
