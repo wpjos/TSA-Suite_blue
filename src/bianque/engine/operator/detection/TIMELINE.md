@@ -159,6 +159,8 @@ CICADAPredictor(name=["MLP"], win_size=10, num_channels=3,
 |--------|------|------|---------|------|
 | `053cd9e` | 04-25 | `detection/cicada.py`, `test_cicada.py` | 新增 | CICADAPredictor 适配层 + 22 个单元测试 |
 | `7d5233d` | 04-25 | `detection/detection.md` | 更新 | 目录结构和算子列表补充 CICADA |
+| `0076939` | 04-25 | `detection/TIMELINE.md` | 新增 | CICADA 合入开发记录 |
+| `902e2f1` | 04-26 | `KNOWN_ISSUES.md` | 新增 | 项目已知问题记录 |
 
 ---
 
@@ -194,9 +196,20 @@ BianQue-Suite 项目
   │
   ├─ 7d5233d  文档阶段
   │           更新 detection.md 目录结构和算子列表
-  │           创建 TIMELINE.md
   │
-  └─ PR → master
+  ├─ 0076939  记录阶段
+  │           创建 TIMELINE.md 开发记录
+  │
+  ├─ 04-25  合入 master
+  │         fast-forward merge feat/CICADA → master
+  │         删除远程 feat/CICADA 分支（可选）
+  │
+  ├─ 902e2f1  04-26
+  │           新增 KNOWN_ISSUES.md 记录历史遗留问题
+  │           - evaluation 模块 point_adjust 缺失
+  │           - test_base.py 重名导致 __pycache__ 冲突
+  │
+  └─ master 为发行版本
 ```
 
 ---
