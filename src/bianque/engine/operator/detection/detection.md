@@ -14,6 +14,7 @@ src/bianque/engine/operator/detection/
 ├── composite.py             # 组合算子（CompositeScorer / CompositeDetector）
 ├── mean_predictor.py        # 均值预测器（Predictor 示例）
 ├── pca.py                   # PCA 预测器（Predictor 示例）
+├── cicada.py                # CICADA 预测器（Mixture-of-Experts + MAML 重构型 Predictor）
 ├── residual_scorer.py       # 残差评分器（BiNumericOperator Scorer 示例）
 ├── mean_scorer.py           # 均值评分器（NumericOperator Scorer 示例）
 ├── threshold_decider.py     # 固定阈值决策器（Decider 示例）
@@ -460,6 +461,7 @@ detector.save("./model_dir")
 |-------------------|-----------|-------------------|-------|------|
 | PCAPredictor      | Predictor | NumericOperator   | ✅     | ❌    |
 | MeanPredictor     | Predictor | NumericOperator   | ✅     | ❌    |
+| CICADAPredictor   | Predictor | NumericOperator   | ✅     | ❌    |
 | ZScoreScorer      | Scorer    | NumericOperator   | ✅     | ❌    |
 | KNNScorer         | Scorer    | NumericOperator   | ✅     | ✅    |
 | MeanScorer        | Scorer    | NumericOperator   | ❌     | ❌    |
