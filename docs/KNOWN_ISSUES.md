@@ -4,7 +4,7 @@
 
 ---
 
-## 1. Evaluation 模块测试无法收集
+## 1. Evaluation 模块测试无法收集 ✅ 已解决
 
 **影响范围**: `tests/test_engine_operator/test_evaluation/` 下所有测试文件
 
@@ -12,11 +12,9 @@
 
 **原因**: `evaluation/__init__.py` 中 import 了 `point_adjust` 模块，但该文件尚未创建
 
-**涉及文件**:
-- `src/bianque/engine/operator/evaluation/__init__.py` — 引用了不存在的模块
-- `tests/test_engine_operator/test_evaluation/test_binary_classification.py` — 无法收集
+**解决**: commit `bdbfd0f` 移除了 `evaluation/__init__.py` 中的所有 import 语句，pytest 不再报错
 
-**状态**: 待 evaluation 模块补齐 `point_adjust.py` 后自动解决
+**状态**: 已解决（2026-04-29）
 
 ---
 

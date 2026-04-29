@@ -161,6 +161,16 @@ CICADAPredictor(name=["MLP"], win_size=10, num_channels=3,
 | `7d5233d` | 04-25 | `detection/detection.md` | 更新 | 目录结构和算子列表补充 CICADA |
 | `0076939` | 04-25 | `detection/TIMELINE.md` | 新增 | CICADA 合入开发记录 |
 | `902e2f1` | 04-26 | `KNOWN_ISSUES.md` | 新增 | 项目已知问题记录 |
+| `0a509a6` | 04-26 | `detection/TIMELINE.md` | 更新 | 补充合入和已知问题记录 |
+| `bc581a2` | 04-29 | 多文件 | refactor | 移除旧实现代码及测试 |
+| `8d83151` | 04-29 | `hpo/` | 新增 | HPO 超参数优化模块（+3542 行） |
+| `0c63716` | 04-29 | `detection/knn.py`, `zscore.py` | 新增 | KNN/Z-Score 异常检测算子（+1011 行） |
+| `80cb61a` | 04-29 | `detection/composite.py` | 新增 | 组合异常检测算子（+1670 行） |
+| `bdbfd0f` | 04-29 | `evaluation/__init__.py` | 修复 | 移除不存在模块的 import |
+| `1c5ec57` | 04-29 | `cli/` | 新增 | 统一算子 CLI 接口（+4467 行） |
+| `9072988` | 04-29 | `feature-construction.md` | 更新 | 刷新特征构造模块文档 |
+| `a1051ed` | 04-29 | 多文件 | docs | 文档统一迁移至 docs/ 目录 |
+| `0bf1277` | 04-29 | `.gitignore` | chore | 添加 .DS_Store |
 
 ---
 
@@ -209,7 +219,42 @@ BianQue-Suite 项目
   │           - evaluation 模块 point_adjust 缺失
   │           - test_base.py 重名导致 __pycache__ 冲突
   │
-  └─ master 为发行版本
+  ├─ bdbfd0f  04-29
+  │           修复 KNOWN_ISSUES 问题1：移除 evaluation/__init__.py 中不存在的 import
+  │
+  ├─ 8d83151  04-29
+  │           新增 HPO 超参数优化模块（+3542 行）
+  │           - 基于 Optuna 实现，支持单目标/多目标优化
+  │           - 零侵入搜索空间声明（Pydantic Field + Enum/Literal）
+  │           - SearchHint 支持 log 采样和非1步长
+  │           - HPOTrainer 支持验证集切分与交叉验证
+  │
+  ├─ 0c63716  04-29
+  │           新增 KNN 和 Z-Score 异常检测算子（+1011 行）
+  │           - KNNScorer / KNNDetector：K 近邻距离评分 + PercentileDecider
+  │           - ZScoreScorer / ZScoreDetector：Z-Score 评分 + ThresholdDecider
+  │
+  ├─ 80cb61a  04-29
+  │           新增组合异常检测算子（+1670 行）
+  │           - CompositeScorer：Predictor + 多 Scorer 组合评分
+  │           - CompositeDetector：Predictor + 多 Scorer + Decider 组合检测
+  │
+  ├─ 1c5ec57  04-29
+  │           新增统一算子 CLI 接口（+4467 行）
+  │           - 支持 feature_construction / detection / evaluation 三模块
+  │           - 配置文件加载（JSON / YAML / JSON5）
+  │           - 帮助文档自动生成（Markdown）
+  │
+  ├─ 9072988  04-29
+  │           刷新特征构造模块文档
+  │
+  ├─ a1051ed  04-29
+  │           将项目文档统一迁移至 docs/ 目录
+  │
+  ├─ 0bf1277  04-29
+  │           添加 .DS_Store 到 .gitignore
+  │
+  └─ master 为当前开发版本
 ```
 
 ---
