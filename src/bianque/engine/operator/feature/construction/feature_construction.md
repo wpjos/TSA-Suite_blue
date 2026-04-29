@@ -1,14 +1,13 @@
 # 特征构造算子模块开发指南 (Feature Construction)
 
-本文档旨在指导开发者基于 `feature/construction` 模块（包含 `base_feature.py`、`registry.py`、`constructor.py`）开发和使用新的特征构造算子。
+本文档旨在指导开发者基于 `feature/construction` 模块开发和使用新的特征构造算子。
 
 ## 1. 架构概览
 
-特征构造模块基于统一的算子接口（`BaseOperator` 和 `LearnableOperatorMixin`），采用了**多维度正交组合混入类型（Mixin）+ 模板方法模式**的设计。整体包含三个核心组件：
+特征构造模块基于统一的算子接口（`BaseOperator` 和 `LearnableOperatorMixin`），采用了**多维度正交组合混入类型（Mixin）+ 模板方法模式**的设计。整体包含两个核心组件：
 
-1. **特征算子基类体系 (`base_feature.py`)**：通过组合“列关系”、“行关系”和“是否可训练”这三个维度，提供了 8 个供开发者直接继承的编排基类。基类自动处理了参数校验、列遍历、滑动窗口切片、填充（Padding）与对齐（Alignment）等底层逻辑。
-2. **注册中心 (`registry.py`)**：提供 `FeatureRegistry`，统一管理系统中的所有特征算子类，支持自动发现与装饰器注册。
-3. **编排引擎 (`constructor.py`)**：提供 `FeatureConstructor`，通过声明式配置，协调多个特征算子实例批量执行，并将多个输出结果按索引对齐合并。
+1. **特征算子基类体系 (`base.py`)**：通过组合“列关系”、“行关系”和“是否可训练”这三个维度，提供了 8 个供开发者直接继承的编排基类。基类自动处理了参数校验、列遍历、滑动窗口切片、填充（Padding）与对齐（Alignment）等底层逻辑。
+2. **统一命令行 (`cli/`)**：提供基于包扫描的自动算子注册发现机制和统一命令行调用入口，通过声明式配置批量协调并执行特征算子。
 
 ---
 
@@ -84,15 +83,17 @@ import numpy as np
 from bianque.engine.operator.feature.construction.base import (
     BaseFeatureConfig, IndependentMapFeature
 )
-from bianque.engine.operator.feature.construction.registry import FeatureRegistry
 
 
 class SquareConfig(BaseFeatureConfig):
     pass
 
 
-@FeatureRegistry.as_decorator(name="square")
 class SquareFeature(IndependentMapFeature[SquareConfig]):
+    @classmethod
+    def name(cls) -> str:
+        return "square_feature"
+
     @staticmethod
     def compute(x: np.ndarray, *, state=None, **params) -> np.ndarray:
         # x 是 input_columns 对应列的完整 NumPy 数组（全部行，可能多列）
@@ -110,15 +111,17 @@ class SquareFeature(IndependentMapFeature[SquareConfig]):
 from bianque.engine.operator.feature.construction.base import (
     WindowFeatureConfig, IndependentWindowFeature
 )
-from bianque.engine.operator.feature.construction.registry import FeatureRegistry
 
 
 class RollingMeanConfig(WindowFeatureConfig):
     pass  # 基类已包含 window_size, padding, alignment
 
 
-@FeatureRegistry.as_decorator(name="rolling_mean")
 class RollingMeanFeature(IndependentWindowFeature[RollingMeanConfig]):
+    @classmethod
+    def name(cls) -> str:
+        return "rolling_mean_feature"
+
     @staticmethod
     def compute(x: np.ndarray, *, state=None, **params) -> float:
         # x 是大小为 window_size 的切片（由 Window 机制保证）
@@ -153,7 +156,6 @@ from bianque.engine.operator.base import DataFrameMeta
 from bianque.engine.operator.feature.construction.base import (
     BaseFeatureConfig, LearnableJointMapFeature
 )
-from bianque.engine.operator.feature.construction.registry import FeatureRegistry
 
 
 class PCAConfig(BaseFeatureConfig):
@@ -172,8 +174,11 @@ class PCAState(BaseModel):
     components: np.ndarray
 
 
-@FeatureRegistry.as_decorator(name="pca")
 class PCAFeature(LearnableJointMapFeature[PCAConfig, PCAState]):
+
+    @classmethod
+    def name(cls) -> str:
+        return "pca_feature"
 
     @staticmethod
     def train(x: np.ndarray, **params) -> PCAState:
@@ -233,86 +238,12 @@ class PCAFeature(LearnableJointMapFeature[PCAConfig, PCAState]):
 
 ---
 
-## 4. 注册中心 (FeatureRegistry)
+## 4. 算子注册与编排引擎使用
 
-`FeatureRegistry` 统一管理所有的算子“类”。
+基于最新的架构设计，开发者无需手动进行算子注册（旧版 `FeatureRegistry` 已被移除）。
 
-**注册算子的三种方式**：
+**自动注册机制**：
+只要你的特征算子类放置在 `bianque.engine.operator.feature.construction` 模块或其子包下，并且正确实现了 `name()` 类方法，算子模块的 CLI 工具底层的 `OperatorRegistry` 就会在启动时自动扫描并注册该算子。
 
-1. **装饰器注册**：推荐使用（见上方代码中的 `@FeatureRegistry.as_decorator`）。
-2. **显式注册**：`FeatureRegistry.register(SquareFeature, name="square")`。
-3. **自动发现**：在系统初始化时调用 `FeatureRegistry.discover()`，框架会自动扫描项目目录下符合规范的子类并注册。
-
-**查找和调用**：
-
-```python
-# 获取类
-feat_cls = FeatureRegistry.get("square")
-
-# 实例化
-feat = feat_cls(config=feat_cls._config_type(input_columns=["sensor_1"]))
-```
-
----
-
-## 5. 编排引擎 (FeatureConstructor)
-
-在真实业务场景中，我们很少直接单独调用某个 `Feature` 实例。相反，我们使用 `FeatureConstructor` 以声明式的方式来编排和运行多个特征。
-
-`FeatureConstructor` 本身通过 `LearnableOperatorMixin` + `BaseOperator` 多重继承获得可训练能力，但并不代表其中的特征算子必须是可训练的。
-
-**`_can_run()` 定制行为**：`FeatureConstructor` 覆写了 `_can_run()` 方法，实现了宽松的前置校验逻辑——当编排引擎中**不包含**任何可训练特征算子时，允许未经训练直接调用 `run()`；仅当内部包含可训练算子且尚未完成训练时，才抛出 `RuntimeError`。
-
-### 5.1 声明式配置与执行
-
-通过 `FeatureSpec` 列表来定义流水线，并通过 `index_columns` 进行统一对齐：
-
-```python
-from bianque.engine.operator.feature.construction.constructor import (
-    FeatureConstructor,
-    FeatureConstructorConfig,
-    FeatureSpec
-)
-
-config = FeatureConstructorConfig(
-    # index_columns: 用于合并对齐所有算子输出的参考列（如时间列）
-    index_columns=["timestamp"],
-    # keep_original: 是否在结果中包含原始输入特征
-    keep_original=True,
-    features=[
-        # 定义第一个特征
-        FeatureSpec(
-            name="square",
-            config={"input_columns": ["value_1", "value_2"]}
-        ),
-        # 定义第二个特征
-        FeatureSpec(
-            name="rolling_mean",
-            config={
-                "input_columns": ["value_1"],
-                "window_size": 3,
-                "padding": "edge"
-            }
-        )
-    ]
-)
-
-# 初始化编排器
-constructor = FeatureConstructor(config=config)
-
-# 1. 训练流水线（会自动调用内部所有 LearnableFeature 的 fit）
-constructor.fit(train_df)
-
-# 2. 特征计算（会批量运行内部所有算子，并按照 index_columns 自动横向合并拼接结果）
-result_df = constructor.run(test_df)
-```
-
-### 5.2 编排器的持久化
-
-你可以直接保存整个编排器的状态：
-
-```python
-constructor.save("/path/to/save")
-```
-
-由于包含内部多个算子的管理，`FeatureConstructor` 的 `save` 方法会自动按顺序（例如 `0000_SquareFeature/`、`0001_RollingMeanFeature/`）持久化内部每个实例的状态，因此完美支持多个“同类型不同参数”的特征算子共存，并且能正确保存可训练特征的训练参数。
+**编排与调用**：
+对于多个特征构造算子的批量调用和对齐合并（取代旧版的 `FeatureConstructor`），现在统一由 CLI 命令提供声明式调度。请参考 `src/bianque/engine/operator/cli/README.md` 文档获取更多配置详情和使用指南。
