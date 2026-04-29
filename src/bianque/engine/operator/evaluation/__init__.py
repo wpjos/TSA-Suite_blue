@@ -76,19 +76,6 @@ from bianque.engine.operator.evaluation.self_evaluation import (
     SelfEvaluation,
 )
 
-# 旧实现（deprecated，保留向后兼容）
-# 注意：旧 BinaryClassificationMetric / MultipleClassificationMetric 与新算子同名，
-#       以 Legacy 前缀导出以避免覆盖新算子
-from bianque.engine.v0.operator.evaluation.regular import (
-    BinaryClassificationMetricBasic as LegacyBinaryClassificationMetricBasic,
-    BinaryClassificationMetric as LegacyBinaryClassificationMetric,
-    BinaryClassificationMetricCurve as LegacyBinaryClassificationMetricCurve,
-    MultipleClassificationMetric as LegacyMultipleClassificationMetric,
-    binary_classification_metric,
-    binary_classification_metric_curve,
-    multiple_classification_metric,
-)
-
 __all__ = [
     # 基础类型
     'MR',
@@ -120,13 +107,4 @@ __all__ = [
     # 无标签自评估
     'SelfEvaluationConfig',
     'SelfEvaluation',
-
-    # 旧实现（deprecated，Legacy 前缀）
-    'LegacyBinaryClassificationMetricBasic',
-    'LegacyBinaryClassificationMetric',
-    'LegacyBinaryClassificationMetricCurve',
-    'LegacyMultipleClassificationMetric',
-    'binary_classification_metric',
-    'binary_classification_metric_curve',
-    'multiple_classification_metric',
 ]
