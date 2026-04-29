@@ -150,3 +150,9 @@ _dataset
 
 # For clean
 /replace.py
+
+# macOS system files
+.DS_Store
+
+# Claude Code temp directory
+.clude/
