@@ -29,10 +29,10 @@ HPO 模块目录结构：
 ```
 src/bianque/engine/hpo/
 ├── __init__.py          # 模块入口，导出公共 API
-├── search_space.py      # searchable() 超参声明与搜索空间提取
-├── metrics.py           # 评估指标（F1/AUC/self_eval）
-├── trainer.py           # HPOTrainer 编排器
-└── hpo.md               # HPO 模块开发指南
+├── search_hint.py      # SearchHint 标记 + 搜索空间提取
+├── result.py           # HPOResult + TrialInfo 结果容器
+├── trainer.py          # HPOTrainer 编排器
+└── hpo.md              # HPO 模块开发指南
 ```
 
 ---
@@ -122,21 +122,41 @@ class MyScorer(SingleScorerMixin[RP], UnsupervisedNumericOperatorMixin[FP],
 
 ### 1.5 Config 声明与可搜索超参
 
-每个算子需要一个 Pydantic `BaseModel` 作为 Config：
+每个算子需要一个 Pydantic `BaseModel` 作为 Config。搜索空间声明基于 Pydantic 原生 `Field(ge/le/gt/lt)` 和 `Enum`/`Literal` 类型注解，零侵入。绝大多数场景下无需额外标注：
 
 ```python
-from pydantic import BaseModel
-from bianque.engine.hpo.search_space import searchable
+from typing import Literal
+from pydantic import BaseModel, Field
 
 
 class MyConfig(BaseModel):
-    # 可搜索超参 → HPO 时自动搜索
-    threshold: float = searchable(default=3.0, low=1.0, high=10.0, gt=0)
-    n_neighbors: int = searchable(default=5, low=1, high=20, gt=0)
+    # 数值型可搜索超参 → Field(ge/le) 直接定义搜索范围，HPO 时自动搜索
+    threshold: float = Field(default=3.0, ge=1.0, le=10.0)
+    n_neighbors: int = Field(default=5, ge=1, le=20)
 
-    # 固定参数（不参与搜索）
+    # 离散型可搜索超参 → Literal 或 Enum 自动提取候选值
+    metric: Literal["euclidean", "manhattan"] = "euclidean"
+
+    # 固定参数（无 ge/le/Literal/Enum 约束，不参与搜索）
     name: str = "default"
 ```
+
+仅在需要 log 尺度采样、非1步长等特殊语义时，通过 `Annotated` 注入 `SearchHint`：
+
+```python
+from typing import Annotated
+from bianque.engine.hpo import SearchHint
+
+class AdvancedConfig(BaseModel):
+    # log 尺度采样
+    learning_rate: Annotated[float, Field(default=0.001, ge=1e-5, le=1e-1),
+                             SearchHint(log=True)]
+    # 非1步长
+    batch_size: Annotated[int, Field(default=32, ge=8, le=256),
+                          SearchHint(step=8)]
+```
+
+> **注意**：数值型字段必须有 `ge`/`le`/`gt`/`lt` 中至少一个边界约束才会参与 HPO 搜索；无约束的字段自动跳过。详细说明请参阅 `bianque/engine/hpo/hpo.md`。
 
 ### 1.6 输出格式
 
@@ -160,7 +180,8 @@ class MyConfig(BaseModel):
 ```python
 # iforest.py
 import numpy as np
-from pydantic import BaseModel
+from typing import Literal
+from pydantic import BaseModel, Field
 
 from bianque.engine.operator.detection.base import (
     SingleScorerMixin,
@@ -169,16 +190,17 @@ from bianque.engine.operator.detection.base import (
     NumericOperator,
 )
 from bianque.engine.operator.detection.percentile_decider import PercentileDecider
-from bianque.engine.hpo.search_space import searchable
 
 
 class IForestScorerConfig(BaseModel):
     """IForest 评分器配置"""
-    n_estimators: int = searchable(
-        default=100, low=10, high=500, gt=0, description="树的数量"
+    n_estimators: int = Field(
+        default=100, ge=10, le=500,
+        description="树的数量"
     )
-    contamination: float = searchable(
-        default=0.1, low=0.01, high=0.5, gt=0, lt=0.5, description="异常比例"
+    contamination: float = Field(
+        default=0.1, ge=0.01, le=0.5,
+        description="异常比例"
     )
 
 
@@ -208,9 +230,9 @@ class IForestScorer(SingleScorerMixin[None],
 
 class IForestDetectorConfig(BaseModel):
     """IForest 检测器配置"""
-    n_estimators: int = searchable(default=100, low=10, high=500, gt=0)
-    contamination: float = searchable(default=0.1, low=0.01, high=0.5, gt=0, lt=0.5)
-    percentile: float = searchable(default=95.0, low=50.0, high=99.9, gt=0, lt=100)
+    n_estimators: int = Field(default=100, ge=10, le=500)
+    contamination: float = Field(default=0.1, ge=0.01, le=0.5)
+    percentile: float = Field(default=95.0, ge=50.0, le=99.9)
 
 
 class IForestDetector(UnsupervisedNumericOperatorMixin[None],
@@ -477,15 +499,18 @@ detector.save("./model_dir")
 
 ```python
 from bianque.engine.hpo import HPOTrainer
-from bianque.engine.operator.detection import ZScoreDetector
+from bianque.engine.operator.detection.zscore import ZScoreDetector
+from bianque.engine.operator.evaluation.binary_classification import BinaryClassificationMetric
 
-trainer = HPOTrainer(ZScoreDetector, n_trials=50)
-trainer.fit(train_data, val_data=val_data, val_labels=val_labels)
+metric_op = BinaryClassificationMetric()
+trainer = HPOTrainer(ZScoreDetector, metric_op, n_trials=50, top_k=3)
+result = trainer.fit(train_data, val_labels=val_labels, val_split=0.3)
 
-best_detector = trainer.best_detector
-best_config = trainer.best_config
-best_score = trainer.best_score
-trainer.save("./hpo_results")
+# 访问结果
+print(result.best_params)       # 最优参数
+print(result.best_score)        # 最优分数（dict）
+print(result.best_score_value)  # 最优主分数值（float）
+print(result.best_operator)     # 最优算子实例
 ```
 
 > **注意**：HPO 模块的详细说明请参阅 `bianque/engine/hpo/hpo.md`。
