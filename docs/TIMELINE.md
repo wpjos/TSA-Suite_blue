@@ -171,6 +171,8 @@ CICADAPredictor(name=["MLP"], win_size=10, num_channels=3,
 | `9072988` | 04-29 | `feature-construction.md` | 更新 | 刷新特征构造模块文档 |
 | `a1051ed` | 04-29 | 多文件 | docs | 文档统一迁移至 docs/ 目录 |
 | `0bf1277` | 04-29 | `.gitignore` | chore | 添加 .DS_Store |
+| - | 04-30 | `feature/construction/signal_feature.py` | 新增 | 31 个预测性维护信号特征算子（+680 行） |
+| - | 04-30 | `feature/construction/__init__.py` | 更新 | 补充信号特征导出 |
 
 ---
 
@@ -253,6 +255,18 @@ BianQue-Suite 项目
   │
   ├─ 0bf1277  04-29
   │           添加 .DS_Store 到 .gitignore
+  │
+  ├─ 04-30  信号特征构造算子合入
+  │         新增 signal_feature.py（+680 行）
+  │         合入预测性维护 32 维特征中的 31 个（speed_rpm 日后处理）
+  │         - Group A: 11 个简单统计特征（mean_square, variance, rms 等）
+  │         - Group B: 3 个需采样率特征（spectral_entropy, roughness, sharpness）
+  │         - Group C: 5 个频域特征（spectral_centroid, msf, rmsf, freq_var, freq_std）
+  │         - Group D: 3 个复合特征（envelope_rms, average_kurtosis, hnr）
+  │         - Group E: 3 类频带特征 × 3 频带 = 9 个（band_kurtosis/rms/hnr）
+  │         全部为 IndependentMapFeature + Base 模式
+  │         更新 feature/construction/__init__.py 导出
+  │         与 ops 库完成数值交叉验证（31/31 精确匹配）
   │
   └─ master 为当前开发版本
 ```
