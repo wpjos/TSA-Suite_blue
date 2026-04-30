@@ -3,7 +3,7 @@
 """
 信号特征构造算子实现模块
 
-提供 31 个面向预测性维护场景的信号特征算子，均基于 IndependentMapFeature + Base 模式。
+提供 32 个面向预测性维护场景的信号特征算子，均基于 IndependentMapFeature + Base 模式。
 数据模型：每个 DataFrame 格子存放一个信号段（list/ndarray），compute 逐格计算产生标量特征值。
 
 特征分组：
@@ -12,9 +12,12 @@
 - Group C: 频域特征 (5) — sample_rate
 - Group D: 复合特征 (3) — envelope_rms, average_kurtosis, hnr
 - Group E: 频带特征 (3 类，可参数化为 9 个实例) — sample_rate + band boundaries
+- Group F: 转速特征 (1) — HPS+ speed_rpm
 
 参考 ops 项目的算子实现，使用纯 NumPy 后端。
 """
+
+import math
 
 import numpy as np
 from pydantic import Field
@@ -29,6 +32,7 @@ __all__ = [
     'SampleRateFeatureConfig',
     'BandFeatureConfig',
     'AverageKurtosisConfig',
+    'SpeedRpmConfig',
     # Group A: 简单统计特征
     'MeanSquareFeature',
     'VarianceFeature',
@@ -59,6 +63,8 @@ __all__ = [
     'BandKurtosisFeature',
     'BandRmsFeature',
     'BandHnrFeature',
+    # Group F: 转速特征
+    'SpeedRpmFeature',
 ]
 
 
@@ -478,6 +484,154 @@ def _roughness_1d(sig: np.ndarray, sample_rate: float) -> float:
 
 
 # ============================================================================
+# HPS+ 转速估计辅助函数
+# ============================================================================
+
+def _hps_spectral_normalize(spectrum: np.ndarray, win_bins: int) -> np.ndarray:
+    """频谱归一化（平滑包络拉平）。
+
+    将频谱除以平滑后的自身，让各频段峰值公平竞争。
+    """
+    win = max(2 * win_bins + 1, 3)
+    if spectrum.size < win:
+        return spectrum
+    kernel = np.ones(win) / win
+    smoothed = np.convolve(spectrum, kernel, mode="valid")
+    shift = 2 * win_bins - 1
+    baseline = np.full(spectrum.size, np.nan)
+    fill1 = min(baseline.size, smoothed.size - shift)
+    if fill1 > 0:
+        baseline[:fill1] = smoothed[shift : shift + fill1]
+    start2 = 3 * win_bins
+    fill2 = min(baseline.size - start2, smoothed.size)
+    if fill2 > 0:
+        region = baseline[start2 : start2 + fill2]
+        mask = ~np.isnan(region)
+        region[mask] = (region[mask] + smoothed[: np.sum(mask)]) / 2.0
+        region[~mask] = smoothed[: np.sum(~mask)]
+        baseline[start2 : start2 + fill2] = region
+    bl = np.nan_to_num(baseline, nan=1.0)
+    bl = np.maximum(bl, 1e-10)
+    return spectrum / bl
+
+
+def _hps_core(spectrum: np.ndarray, n_harmonics: int = 5, normalize_win: int | None = None) -> np.ndarray:
+    """Harmonic Product Spectrum（对数域）。
+
+    HPS(f) = Π(h=1..H) |S(h·f)|，在对数域计算避免数值溢出。
+    """
+    spectrum = np.asarray(spectrum, dtype=float)
+    if spectrum.size == 0:
+        return np.array([], dtype=float)
+    if spectrum.size == 1:
+        return np.array([0.0])
+    if normalize_win is not None and normalize_win > 0:
+        spectrum = _hps_spectral_normalize(spectrum, normalize_win)
+    out_len = spectrum.size // n_harmonics
+    if out_len == 0:
+        return np.array([0.0])
+    log_spec = np.log(np.maximum(spectrum[:out_len], 1e-30))
+    result = log_spec.copy()
+    for h in range(2, n_harmonics + 1):
+        downsampled = spectrum[::h][:out_len]
+        if downsampled.size < out_len:
+            break
+        result += np.log(np.maximum(downsampled, 1e-30))
+    return result
+
+
+def _hps_pick_peak_validated(product: np.ndarray, spectrum: np.ndarray,
+                              bin_min: int, bin_max: int, n_harmonics: int = 5) -> int | None:
+    """谐波验证选峰（HPS+ 核心策略）。
+
+    在 HPS 产品中找峰值候选，对每个候选统计其谐波族在原始频谱中的峰个数和突出度，
+    选择得分最高的候选。这是 HPS+ 抗噪的关键创新。
+    """
+    bin_min = max(bin_min, 0)
+    bin_max = min(bin_max, product.size - 1)
+    if bin_min >= bin_max:
+        return None
+    segment = product[bin_min : bin_max + 1]
+    padded = np.pad(segment, 1, constant_values=-np.inf)
+    is_peak = (segment > padded[:-2]) & (segment > padded[2:])
+    if not np.any(is_peak):
+        return bin_min + int(np.argmax(segment))
+    candidates = np.where(is_peak)[0] + bin_min
+    if candidates.size == 1:
+        return int(candidates[0])
+    spec_padded = np.pad(spectrum, 1, constant_values=-np.inf)
+    spec_is_peak = (spectrum > spec_padded[:-2]) & (spectrum > spec_padded[2:])
+    spec_peaks = set(np.where(spec_is_peak)[0])
+
+    def compute_prominence(hb):
+        half_w = max(2, hb // 4) if hb > 0 else 2
+        lo = max(0, hb - half_w)
+        hi = min(spectrum.size, hb + half_w + 1)
+        neighborhood = np.concatenate([spectrum[lo:hb], spectrum[hb + 1:hi]])
+        if neighborhood.size == 0:
+            return spectrum[hb]
+        return spectrum[hb] - np.mean(neighborhood)
+
+    best_bin = None
+    best_peak_count = -1
+    best_prominence = -np.inf
+    for c in candidates:
+        c = int(c)
+        peak_count = 0
+        prominence_sum = 0.0
+        for h in range(1, n_harmonics + 1):
+            hb = c * h
+            if hb >= spectrum.size:
+                break
+            if hb in spec_peaks:
+                peak_count += 1
+            prominence_sum += compute_prominence(hb)
+        if peak_count > best_peak_count:
+            best_peak_count = peak_count
+            best_prominence = prominence_sum
+            best_bin = c
+        elif peak_count == best_peak_count and prominence_sum > best_prominence:
+            best_prominence = prominence_sum
+            best_bin = c
+    return best_bin
+
+
+def _speed_rpm_1d(sig: np.ndarray, sample_rate: float, speed_min: float, speed_max: float,
+                   n_harmonics: int = 5, speed_delta: float = 10.0, std_min: float = 0.01) -> float:
+    """转速估计（HPS+ 方法）。
+
+    Args:
+        sig: 时域振动信号
+        sample_rate: 采样率 (Hz)
+        speed_min, speed_max: 转速搜索范围 (RPM)
+        n_harmonics: 谐波数（默认 5）
+        speed_delta: 转速分辨率 (RPM)，用于频谱归一化窗口
+        std_min: 信号最小标准差（低于此返回 0）
+
+    Returns:
+        float: 估计转速 (RPM)，失败返回 0.0
+    """
+    x = np.asarray(sig, dtype=float)
+    if x.size < 2 or np.std(x) < std_min:
+        return 0.0
+    N = x.size
+    spectrum = np.abs(np.fft.rfft(x))
+    # 频谱归一化窗口
+    ndeta = max(1, math.ceil(speed_delta / 60 * N / sample_rate))
+    normed = _hps_spectral_normalize(spectrum, ndeta)
+    # HPS 核心
+    product = _hps_core(normed, n_harmonics=n_harmonics)
+    # 搜索范围映射到 bin
+    bin_min = max(1, int(speed_min / 60 * N / sample_rate))
+    bin_max = min(math.ceil(speed_max / 60 * N / sample_rate), product.size - 1)
+    # 谐波验证选峰
+    best_bin = _hps_pick_peak_validated(product, normed, bin_min, bin_max, n_harmonics)
+    if best_bin is None:
+        return 0.0
+    return float(best_bin / N * sample_rate * 60)
+
+
+# ============================================================================
 # Config 定义
 # ============================================================================
 
@@ -495,6 +649,15 @@ class BandFeatureConfig(SampleRateFeatureConfig):
 class AverageKurtosisConfig(BaseFeatureConfig):
     """分段峭度均值特征 Config。"""
     n_segments: int = Field(default=10, gt=0, description="分段数")
+
+
+class SpeedRpmConfig(SampleRateFeatureConfig):
+    """转速估计（HPS+）特征 Config。"""
+    speed_min: float = Field(gt=0, description="最小转速搜索范围 (RPM)")
+    speed_max: float = Field(gt=0, description="最大转速搜索范围 (RPM)")
+    n_harmonics: int = Field(default=5, gt=0, description="谐波数")
+    speed_delta: float = Field(default=10.0, gt=0, description="转速分辨率 (RPM)")
+    std_min: float = Field(default=0.01, ge=0, description="信号最小标准差阈值")
 
 
 # ============================================================================
@@ -948,3 +1111,44 @@ class BandHnrFeature(IndependentMapFeature[BandFeatureConfig]):
         high_str = str(int(self.config.high)) if self.config.high is not None else "nyquist"
         low_str = str(int(self.config.low))
         return self._make_output_column_name(input_col, f"band_hnr_{low_str}_{high_str}")
+
+
+# ============================================================================
+# Group F: 转速特征 (1)
+# ============================================================================
+
+class SpeedRpmFeature(IndependentMapFeature[SpeedRpmConfig]):
+    """转速估计特征（HPS+ 方法）。
+
+    基于谐波乘积谱 + 谐波验证选峰，适合旋转设备振动/声音信号的转速估计。
+    """
+    @classmethod
+    def name(cls) -> str:
+        return "speed_rpm_feature"
+
+    @staticmethod
+    def compute(x, *, state=None, **params):
+        sample_rate = params.get('sample_rate', 44100)
+        speed_min = params.get('speed_min', 600)
+        speed_max = params.get('speed_max', 3600)
+        n_harmonics = params.get('n_harmonics', 5)
+        speed_delta = params.get('speed_delta', 10.0)
+        std_min = params.get('std_min', 0.01)
+
+        def _speed(sig):
+            return _speed_rpm_1d(sig, sample_rate, speed_min, speed_max, n_harmonics, speed_delta, std_min)
+
+        return _apply_per_cell(x, _speed)
+
+    def _get_compute_params(self):
+        return {
+            'sample_rate': self.config.sample_rate,
+            'speed_min': self.config.speed_min,
+            'speed_max': self.config.speed_max,
+            'n_harmonics': self.config.n_harmonics,
+            'speed_delta': self.config.speed_delta,
+            'std_min': self.config.std_min,
+        }
+
+    def _name_output_column(self, input_col, output_val):
+        return self._make_output_column_name(input_col, "speed_rpm")

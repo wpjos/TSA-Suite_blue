@@ -9,7 +9,7 @@
 包含:
 - 基类: base.py 中定义的 8 个编排基类
 - 简单特征: simple_feature.py 中的基础实现
-- 信号特征: signal_feature.py 中的 31 个预测性维护特征
+- 信号特征: signal_feature.py 中的 32 个预测性维护特征
 """
 
 from bianque.engine.operator.feature.construction.base import (
@@ -45,6 +45,7 @@ from bianque.engine.operator.feature.construction.signal_feature import (
     SampleRateFeatureConfig,
     BandFeatureConfig,
     AverageKurtosisConfig,
+    SpeedRpmConfig,
     # Group A: 简单统计特征
     MeanSquareFeature,
     VarianceFeature,
@@ -75,6 +76,8 @@ from bianque.engine.operator.feature.construction.signal_feature import (
     BandKurtosisFeature,
     BandRmsFeature,
     BandHnrFeature,
+    # Group F: 转速特征
+    SpeedRpmFeature,
 )
 
 __all__ = [
@@ -108,6 +111,7 @@ __all__ = [
     'SampleRateFeatureConfig',
     'BandFeatureConfig',
     'AverageKurtosisConfig',
+    'SpeedRpmConfig',
     # Group A: 简单统计特征
     'MeanSquareFeature',
     'VarianceFeature',
@@ -138,4 +142,6 @@ __all__ = [
     'BandKurtosisFeature',
     'BandRmsFeature',
     'BandHnrFeature',
+    # Group F: 转速特征
+    'SpeedRpmFeature',
 ]

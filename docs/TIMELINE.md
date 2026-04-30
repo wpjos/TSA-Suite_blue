@@ -173,6 +173,7 @@ CICADAPredictor(name=["MLP"], win_size=10, num_channels=3,
 | `0bf1277` | 04-29 | `.gitignore` | chore | 添加 .DS_Store |
 | - | 04-30 | `feature/construction/signal_feature.py` | 新增 | 31 个预测性维护信号特征算子（+680 行） |
 | - | 04-30 | `feature/construction/__init__.py` | 更新 | 补充信号特征导出 |
+| - | 04-30 | `feature/construction/signal_feature.py` | 更新 | 新增 SpeedRpmFeature（HPS+ 转速估计），完成 32 维特征全覆盖 |
 
 ---
 
@@ -267,6 +268,13 @@ BianQue-Suite 项目
   │         全部为 IndependentMapFeature + Base 模式
   │         更新 feature/construction/__init__.py 导出
   │         与 ops 库完成数值交叉验证（31/31 精确匹配）
+  │
+  ├─ 04-30  SpeedRpmFeature 合入
+  │         新增 Group F: HPS+ 转速估计特征
+  │         - SpeedRpmConfig: sample_rate + speed_min/speed_max + n_harmonics/speed_delta/std_min
+  │         - 纯 NumPy 实现 HPS+ 算法（频谱归一化 → HPS → 谐波验证选峰）
+  │         - 与 ops RECIPES speed_rpm 交叉验证精确匹配
+  │         32 维特征全覆盖完成
   │
   └─ master 为当前开发版本
 ```
