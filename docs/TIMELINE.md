@@ -174,6 +174,8 @@ CICADAPredictor(name=["MLP"], win_size=10, num_channels=3,
 | - | 04-30 | `feature/construction/signal_feature.py` | 新增 | 31 个预测性维护信号特征算子（+680 行） |
 | - | 04-30 | `feature/construction/__init__.py` | 更新 | 补充信号特征导出 |
 | - | 04-30 | `feature/construction/signal_feature.py` | 更新 | 新增 SpeedRpmFeature（HPS+ 转速估计），完成 32 维特征全覆盖 |
+| - | 04-30 | `test_signal_feature.py` | 新增 | 132 个信号特征测试用例，覆盖全部 26 个特征类 |
+| - | 04-30 | `pyproject.toml` | 新增 | 项目配置（依赖管理、pytest、ruff） |
 
 ---
 
@@ -275,6 +277,19 @@ BianQue-Suite 项目
   │         - 纯 NumPy 实现 HPS+ 算法（频谱归一化 → HPS → 谐波验证选峰）
   │         - 与 ops RECIPES speed_rpm 交叉验证精确匹配
   │         32 维特征全覆盖完成
+  │
+  ├─ 04-30  测试补全
+  │         新增 test_signal_feature.py（+1097 行）
+  │         - 移植 ops 测试模式和参考值，适配 IndependentMapFeature 框架
+  │         - 132 个测试用例覆盖全部 26 个特征类
+  │         - Oracle 对比 + 手工参考值 + 域知识断言 + 边界情况
+  │
+  ├─ 04-30  项目配置
+  │         新增 pyproject.toml
+  │         - Python >= 3.11，核心依赖 5 个，可选依赖 hpo/knn
+  │         - CICADA 以注释保留版本约束 cicada-ad>=0.1.0（本地包）
+  │         - pytest pythonpath=["src"]，无需手动 PYTHONPATH
+  │         - CICADA 22 个测试全部通过
   │
   └─ master 为当前开发版本
 ```
