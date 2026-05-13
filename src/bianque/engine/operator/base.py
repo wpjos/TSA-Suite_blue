@@ -52,6 +52,7 @@
 """
 
 from abc import ABCMeta, abstractmethod
+from collections.abc import Generator
 from pathlib import Path
 from typing import TypeVar, Generic, Any, ClassVar, Self, Union, Annotated, get_origin, get_args
 
@@ -69,6 +70,7 @@ __all__ = [
     'DataFrameMeta',
     'ArrayN',
     'NumericData',
+    'BatchRunNumericOperatorMixin',
     'I',
     'O',
     'C',
@@ -920,7 +922,7 @@ class _NumericOperatorMixin(metaclass=ABCMeta):
         else:
             raise TypeError(f"数据类型必须是 pd.DataFrame 或 np.ndarray，但当前是 {type(x)}")
 
-    def _adjust_data(self, x: np.ndarray, params: RP | None) -> np.ndarray:
+    def _adjust_data(self, x: np.ndarray, params: RP | None, idx: pd.Index | None = None) -> np.ndarray:
         """
         按需调整 ndarray 数据
 
@@ -929,6 +931,8 @@ class _NumericOperatorMixin(metaclass=ABCMeta):
         Args:
             x(np.ndarray): 输入 ndarray
             params(RP | None): 运行参数
+            idx(pd.Index | None): 输入数据的行索引，DataFrame 输入时为原始索引，
+                ndarray 输入时为 None
 
         Returns:
             np.ndarray: 调整后的 ndarray
@@ -1085,15 +1089,18 @@ class NumericOperator(_NumericOperatorMixin,
         data = self._filter_data(x, params)
         # 步骤3：按输入类型解包为 (元信息, ndarray)，DataFrame 输入时记录元信息用于后续回包
         meta, data = self._unwrap_data(data, params)
-        # 步骤4：按需调整 ndarray 内容（如标准化、归一化等预处理）
-        data = self._adjust_data(data, params)
-        # 步骤5：执行子类实现的核心计算逻辑
-        output_data = self._run_data(data, params)
-        # 步骤6：根据 _eo_type 校验输出并打包
+        # 步骤4：提取行索引（DataFrame 输入时为原始索引，ndarray 输入时为 None）
+        idx = meta.index if meta else None
+        # 步骤5：按需调整 ndarray 内容（如标准化、归一化等预处理）
+        data = self._adjust_data(data, params, idx)
+        # 步骤6：执行子类实现的核心计算逻辑
+        output_data = self._run_data(data, params, idx)
+        # 步骤7：根据 _eo_type 校验输出并打包
         return self._validate_and_wrap_output(output_data, meta, params)
 
     @abstractmethod
-    def _run_data(self, x: np.ndarray, params: RP | None) -> np.ndarray | tuple[np.ndarray, EO]:
+    def _run_data(self, x: np.ndarray, params: RP | None, idx: pd.Index | None = None) -> np.ndarray | tuple[
+        np.ndarray, EO]:
         """
         子类实现的核心计算逻辑
 
@@ -1102,6 +1109,8 @@ class NumericOperator(_NumericOperatorMixin,
         Args:
             x(np.ndarray): 预处理后的输入数据
             params(RP | None): 运行参数，可能为 None
+            idx(pd.Index | None): 输入数据的行索引，DataFrame 输入时为原始索引，
+                ndarray 输入时为 None
 
         Returns:
             np.ndarray: 计算结果
@@ -1184,17 +1193,21 @@ class BiNumericOperator(_NumericOperatorMixin,
         real_meta, x_pred_meta = self._unwrap_data(x_real, params), self._unwrap_data(x_pred, params)
         real_meta, x_real = real_meta
         pred_meta, x_pred = x_pred_meta
-        # 步骤4：按需调整 ndarray 内容（如标准化、归一化等预处理）
-        x_real = self._adjust_data(x_real, params)
-        x_pred = self._adjust_data(x_pred, params)
-        # 步骤5：执行子类实现的核心计算逻辑
-        output_data = self._run_data(x_real, x_pred, params)
-        # 步骤6：根据 _eo_type 校验输出并打包
+        # 步骤4：提取行索引（DataFrame 输入时为原始索引，ndarray 输入时为 None）
+        real_idx = real_meta.index if real_meta else None
+        pred_idx = pred_meta.index if pred_meta else None
+        # 步骤5：按需调整 ndarray 内容（如标准化、归一化等预处理）
+        x_real = self._adjust_data(x_real, params, idx=real_idx)
+        x_pred = self._adjust_data(x_pred, params, idx=pred_idx)
+        # 步骤6：执行子类实现的核心计算逻辑
+        output_data = self._run_data(x_real, x_pred, params, real_idx=real_idx, pred_idx=pred_idx)
+        # 步骤7：根据 _eo_type 校验输出并打包
         return self._validate_and_wrap_output(output_data, pred_meta, params)
 
     @abstractmethod
-    def _run_data(self, x_real: np.ndarray, x_pred: np.ndarray, params: RP | None) -> (np.ndarray |
-                                                                                       tuple[np.ndarray, EO]):
+    def _run_data(self, x_real: np.ndarray, x_pred: np.ndarray, params: RP | None,
+                  real_idx: pd.Index | None = None, pred_idx: pd.Index | None = None) -> (
+            np.ndarray | tuple[np.ndarray, EO]):
         """子类实现的核心计算逻辑（双输入）
 
         接收预处理后的 x_real 和 x_pred ndarray，执行实际比较计算并返回结果。
@@ -1204,6 +1217,8 @@ class BiNumericOperator(_NumericOperatorMixin,
             x_real(np.ndarray): 预处理后的真实值数据
             x_pred(np.ndarray): 预处理后的预测值数据
             params(RP | None): 运行参数，可能为 None
+            real_idx(pd.Index | None): x_real 的行索引
+            pred_idx(pd.Index | None): x_pred 的行索引
 
         Returns:
             np.ndarray | tuple[np.ndarray, EO]: 计算结果，
@@ -1225,6 +1240,155 @@ class BiNumericOperator(_NumericOperatorMixin,
             list[str]: 输出列名列表
         """
         return meta.column_names
+
+
+class BatchRunNumericOperatorMixin(metaclass=ABCMeta):
+    """数值算子批量推理混入
+
+    与 ``NumericOperator`` 同层，通过多重继承为算子增加分批推理能力。
+    子类实现两个抽象方法即可同时获得：
+
+    - ``_run_data``: 自动收集所有批次并合并（供 ``NumericOperator._run`` 管线调用）
+    - ``batch_run``: 公共生成器接口，逐批 yield 与 ``run`` 返回类型一致的结果
+
+    设计原则:
+        - **yield 格式标准化**: ``_iter_batch_results`` yield ``(batch_index, batch_raw_output)``，
+          其中 ``batch_raw_output`` 与 ``_run_data`` 的返回格式一致
+          （``np.ndarray`` 或 ``tuple[np.ndarray, EO]``）
+        - **自动包装**: ``batch_run`` 为每批构造独立的 ``DataFrameMeta``（列名/类型来自原 meta，
+          索引为批次子集），复用 ``_validate_and_wrap_output`` 进行包装
+        - **零侵入**: 不修改任何基类，只有混入此 Mixin 的算子才获得 ``batch_run`` 能力
+
+    MRO 组合示例::
+
+        class MyBatchScorer(
+            SomeScorerMixin[RP],
+            NumericBatchRunMixin,
+            NumericOperator[EO, C, RP],
+        ):
+            def _iter_batch_results(self, x, params, idx):
+                ...
+            def _merge_batch_results(self, batch_results, params):
+                ...
+
+    使用示例::
+
+        scorer = MyBatchScorer(config=my_config)
+        # 全量推理（内部自动调用 batch 机制）
+        result = scorer.run(data)
+        # 流式分批推理
+        for batch_result in scorer.batch_run(data):
+            process(batch_result)
+    """
+
+    @abstractmethod
+    def _iter_batch_results(
+            self, x: np.ndarray, params: RP | None, idx: pd.Index | None,
+    ) -> Generator[
+        tuple[pd.Index | np.ndarray, np.ndarray | tuple[np.ndarray, BaseModel]],
+        None, None,
+    ]:
+        """子类实现：逐批推理并 yield 结果
+
+        每次 yield 一个元组 ``(batch_index, batch_output)``：
+
+        - ``batch_index``: 本批次对应的行索引，用于输出 DataFrame 的行索引构建。
+          DataFrame 输入时应为原始索引的子集（``pd.Index``）；
+          ndarray 输入时可为整数数组（``np.ndarray``）。
+        - ``batch_output``: 本批次的原始计算结果，格式与 ``_run_data`` 的返回值一致：
+          当算子无附加输出时为 ``np.ndarray``，
+          有附加输出时为 ``tuple[np.ndarray, EO]``。
+
+        Args:
+            x(np.ndarray): 预处理后的输入数据
+            params(RP | None): 验证后的运行参数
+            idx(pd.Index | None): 输入数据的行索引，DataFrame 输入时为原始索引，
+                ndarray 输入时为 None
+
+        Yields:
+            tuple[pd.Index | np.ndarray, np.ndarray | tuple[np.ndarray, BaseModel]]:
+                ``(batch_index, batch_output)`` 元组
+        """
+        ...
+
+    @abstractmethod
+    def _merge_batch_results(
+            self,
+            batch_results: list[tuple[pd.Index | np.ndarray, np.ndarray | tuple[np.ndarray, BaseModel]]],
+            params: RP | None,
+    ) -> np.ndarray | tuple[np.ndarray, BaseModel]:
+        """子类实现：合并所有批次结果为 ``_run_data`` 格式的返回值
+
+        接收 ``_iter_batch_results`` yield 的所有 ``(batch_index, batch_output)`` 列表，
+        合并为与 ``_run_data`` 返回值一致的格式。
+
+        Args:
+            batch_results(list): ``_iter_batch_results`` yield 的全部
+                ``(batch_index, batch_output)`` 列表
+            params(RP | None): 验证后的运行参数
+
+        Returns:
+            np.ndarray | tuple[np.ndarray, BaseModel]: 合并后的完整结果
+        """
+        ...
+
+    def _run_data(
+            self, x: np.ndarray, params: RP | None, idx: pd.Index | None = None,
+    ) -> np.ndarray | tuple[np.ndarray, BaseModel]:
+        """收集所有批次并合并 — 供 ``NumericOperator._run`` 管线调用
+
+        由 Mixin 提供默认实现，子类无需覆写。
+        内部调用 ``_iter_batch_results`` 收集全部批次结果后，
+        调用 ``_merge_batch_results`` 合并为最终输出。
+
+        Args:
+            x(np.ndarray): 预处理后的输入数据
+            params(RP | None): 验证后的运行参数
+            idx(pd.Index | None): 输入数据的行索引
+
+        Returns:
+            np.ndarray | tuple[np.ndarray, BaseModel]: 合并后的完整结果
+        """
+        results = list(self._iter_batch_results(x, params, idx))
+        return self._merge_batch_results(results, params)
+
+    def batch_run(
+            self, x: NumericData, *, params: RP | None = None, **kwargs,
+    ) -> Generator[NumericData | tuple[NumericData, BaseModel], None, None]:
+        """分批推理公共接口
+
+        复用 ``NumericOperator`` 管线的预处理步骤（验证→筛选→解包→调整），
+        然后逐批 yield 与 ``run()`` 返回类型一致的结果。
+
+        DataFrame 输入 → yield DataFrame 输出；ndarray 输入 → yield ndarray 输出。
+
+        Args:
+            x(NumericData): 输入数据（DataFrame 或 ndarray）
+            params(RP | None): 运行参数，默认 None
+            **kwargs: 运行时参数键值对覆盖
+
+        Yields:
+            NumericData | tuple[NumericData, BaseModel]: 与 ``run()`` 返回类型一致的批次结果
+        """
+        # 复用 BaseOperator 的参数验证
+        validated_params = self._validated_run_params(params, **kwargs)
+        # 复用 BaseOperator 的前置校验
+        self._can_run()
+        # 复用 NumericOperator 的预处理管线
+        self._validate_input(x, validated_params)
+        data = self._filter_data(x, validated_params)
+        meta, data = self._unwrap_data(data, validated_params)
+        idx = meta.index if meta else None
+        data = self._adjust_data(data, validated_params, idx=idx)
+        # 逐批推理 + 包装
+        for batch_idx, batch_output in self._iter_batch_results(data, validated_params, idx):
+            # 为每批构造独立的 DataFrameMeta（列名/类型不变，索引为批次子集）
+            batch_meta = (
+                DataFrameMeta(meta.column_names, meta.column_types, batch_idx)
+                if meta is not None else None
+            )
+            # 复用已有的校验+包装逻辑，保证 yield 类型与 run 返回类型一致
+            yield self._validate_and_wrap_output(batch_output, batch_meta, validated_params)
 
 
 class SupervisedNumericOperatorMixin(LearnableOperatorMixin[NumericData, NumericData, FP], Generic[FP],

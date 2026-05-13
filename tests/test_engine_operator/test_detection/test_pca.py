@@ -1,17 +1,15 @@
 # -*- coding: utf-8 -*-
 
 """
-具体检测算子单元测试
+PCA 异常检测算子单元测试
 
 对应源文件：
-- pca.py: PCAPredictor
+- pca.py: PCAPredictor, PCAScorer, PCADetector
 
 测试范围：
-- 各算子的 fit/run 基本流程
-- DataFrame/ndarray 双类型支持
-- 边界条件（零标准差、小样本、单特征等）
-- 附加输出正确性
-- 参数验证
+- PCAPredictor: fit/run 基本流程、DataFrame 支持、边界条件
+- PCAScorer: fit/run 流程、异常分数正确性、metric 选择、EO 透传、DataFrame 支持
+- PCADetector: 端到端 fit/run、异常检测能力、EO 透传、DataFrame 支持
 """
 
 import numpy as np
@@ -19,7 +17,14 @@ import pytest
 from pandas import DataFrame
 
 from bianque.engine.operator.detection.pca import (
-    PCAPredictor, PCAPredictorExtraOutput,
+    PCAPredictor,
+    PCAPredictorExtraOutput,
+    PCAScorer,
+    PCAScorerConfig,
+    PCAScorerExtraOutput,
+    PCADetector,
+    PCADetectorConfig,
+    PCADetectorExtraOutput,
 )
 
 
@@ -146,3 +151,177 @@ class TestPCAPredictor:
         predictor = PCAPredictor(n_components=5)
         predictor.fit(train)
         assert predictor._components.shape[0] == 2  # 自动调整为特征数
+
+
+# ============================================================================
+# PCAScorer 测试
+# ============================================================================
+
+class TestPCAScorer:
+    """测试 PCA 评分器"""
+
+    def test_fit_and_run(self, train_data, test_data):
+        """
+        目的：验证训练+推理基本流程
+        输入：(100, 3) 训练数据，(60, 3) 测试数据
+        预期：输出 1D 异常分数，形状 (60,)
+        """
+        scorer = PCAScorer(n_components=2)
+        scorer.fit(train_data)
+        scores, eo = scorer.run(test_data)
+        assert scores.shape == (60,)
+        assert isinstance(eo, PCAScorerExtraOutput)
+
+    def test_scores_non_negative(self, train_data, test_data):
+        """
+        目的：验证 MSE 分数恒非负
+        输入：metric="mse"
+        预期：所有分数 >= 0
+        """
+        scorer = PCAScorer(n_components=2, metric="mse")
+        scorer.fit(train_data)
+        scores, _ = scorer.run(test_data)
+        assert np.all(scores >= 0)
+
+    def test_anomalous_higher_scores(self, train_data, test_data):
+        """
+        目的：验证异常点分数高于正常点
+        输入：测试数据最后 10 个为异常点（偏移+10，放大5倍）
+        预期：异常点平均分数 > 正常点平均分数
+        """
+        scorer = PCAScorer(n_components=2)
+        scorer.fit(train_data)
+        scores, _ = scorer.run(test_data)
+        normal_avg = scores[:50].mean()
+        abnormal_avg = scores[50:].mean()
+        assert abnormal_avg > normal_avg
+
+    def test_metric_mae(self, train_data, test_data):
+        """
+        目的：验证 MAE 模式正常工作
+        输入：metric="mae"
+        预期：输出 1D 分数，所有分数 >= 0
+        """
+        scorer = PCAScorer(n_components=2, metric="mae")
+        scorer.fit(train_data)
+        scores, eo = scorer.run(test_data)
+        assert scores.shape == (60,)
+        assert np.all(scores >= 0)
+        assert isinstance(eo, PCAScorerExtraOutput)
+
+    def test_with_dataframe(self, train_df, test_df):
+        """
+        目的：验证 DataFrame 输入输出兼容性
+        输入：DataFrame 训练/测试数据
+        预期：输出为 DataFrame，列名为 "score"
+        """
+        scorer = PCAScorer(n_components=2)
+        scorer.fit(train_df)
+        scores, _ = scorer.run(test_df)
+        assert isinstance(scores, DataFrame)
+        assert list(scores.columns) == ["score"]
+
+    def test_extended_output(self, train_data, test_data):
+        """
+        目的：验证 EO 聚合子组件的附加输出
+        输入：PCAScorer(n_components=2)
+        预期：eo.pca_eo 包含解释方差比，eo.residual_eo 包含逐变量分数
+        """
+        scorer = PCAScorer(n_components=2)
+        scorer.fit(train_data)
+        _, eo = scorer.run(test_data)
+        assert isinstance(eo, PCAScorerExtraOutput)
+        # PCAPredictor EO
+        assert eo.pca_eo is not None
+        assert isinstance(eo.pca_eo, PCAPredictorExtraOutput)
+        assert eo.pca_eo.n_components == 2
+        assert len(eo.pca_eo.explained_variance_ratio) == 2
+        # ResidualScorer EO
+        assert eo.residual_eo is not None
+
+    def test_before_fit_raises(self, test_data):
+        """
+        目的：验证未训练时 run 抛出 RuntimeError
+        预期：抛出 RuntimeError
+        """
+        scorer = PCAScorer(n_components=2)
+        with pytest.raises(RuntimeError, match="训练尚未完成"):
+            scorer.run(test_data)
+
+    def test_name(self):
+        """
+        目的：验证 name() 返回正确标识
+        预期：返回 "pca_scorer"
+        """
+        assert PCAScorer.name() == "pca_scorer"
+
+
+# ============================================================================
+# PCADetector 测试
+# ============================================================================
+
+class TestPCADetector:
+    """测试 PCA 检测器端到端流程"""
+
+    def test_fit_and_run(self, train_data, test_data):
+        """
+        目的：验证端到端 fit → run 流程
+        预期：输出 1D 标签数组，值为 0 或 1
+        """
+        detector = PCADetector(n_components=2, percentile=95.0)
+        detector.fit(train_data)
+        labels, eo = detector.run(test_data)
+        assert labels.shape == (60,)
+        assert set(labels).issubset({0, 1})
+        assert isinstance(eo, PCADetectorExtraOutput)
+
+    def test_detects_anomalies(self, train_data, test_data):
+        """
+        目的：验证异常点能被检测出来
+        输入：测试数据最后 10 个为异常点，percentile=90.0
+        预期：异常点中至少有一个被判为 1
+        """
+        detector = PCADetector(n_components=2, percentile=90.0)
+        detector.fit(train_data)
+        labels, _ = detector.run(test_data)
+        assert any(labels[50:] == 1)
+
+    def test_with_dataframe(self, train_df, test_df):
+        """
+        目的：验证 DataFrame 输入输出兼容性
+        预期：输出为 DataFrame，列名为 "label"
+        """
+        detector = PCADetector(n_components=2, percentile=95.0)
+        detector.fit(train_df)
+        labels, _ = detector.run(test_df)
+        assert isinstance(labels, DataFrame)
+        assert list(labels.columns) == ["label"]
+
+    def test_extended_output(self, train_data, test_data):
+        """
+        目的：验证 EO 聚合子组件的附加输出
+        预期：eo.scorer_eo 和 eo.decider_eo 非空
+        """
+        detector = PCADetector(n_components=2, percentile=95.0)
+        detector.fit(train_data)
+        _, eo = detector.run(test_data)
+        assert isinstance(eo, PCADetectorExtraOutput)
+        assert eo.scorer_eo is not None
+        assert isinstance(eo.scorer_eo, PCAScorerExtraOutput)
+        assert eo.decider_eo is not None
+
+    def test_before_fit_raises(self, test_data):
+        """
+        目的：验证未训练时 run 抛出 RuntimeError
+        预期：抛出 RuntimeError
+        """
+        detector = PCADetector(n_components=2, percentile=95.0)
+        with pytest.raises(RuntimeError, match="训练尚未完成"):
+            detector.run(test_data)
+
+    def test_name(self):
+        """
+        目的：验证 name() 返回正确标识
+        预期：返回 "pca_detector"
+        """
+        assert PCADetector.name() == "pca_detector"

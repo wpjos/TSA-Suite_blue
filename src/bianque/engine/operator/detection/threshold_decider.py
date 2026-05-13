@@ -14,6 +14,7 @@
 """
 
 import numpy as np
+import pandas as pd
 from pydantic import BaseModel, Field
 
 from bianque.engine.operator.base import NumericOperator
@@ -47,7 +48,7 @@ class ThresholdDecider(BaseDeciderMixin[None], NumericOperator[None, ThresholdDe
     def name(cls) -> str:
         return "threshold_decider"
 
-    def _run_data(self, x: np.ndarray, params: None) -> np.ndarray:
+    def _run_data(self, x: np.ndarray, params: None, idx: pd.Index | None = None) -> np.ndarray:
         """
         阈值决策
 

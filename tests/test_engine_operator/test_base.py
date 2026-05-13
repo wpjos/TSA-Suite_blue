@@ -83,7 +83,7 @@ class SimpleOperator(NumericOperator[None, SimpleConfig, SimpleRunParams]):
     def name(cls) -> str:
         return "simple_operator"
 
-    def _run_data(self, x, params):
+    def _run_data(self, x, params, idx=None):
         return x
 
     def _name_output_columns(self, output_data, meta, params):
@@ -97,7 +97,7 @@ class SimpleOperatorNoParams(NumericOperator[None, None, None]):
     def name(cls) -> str:
         return "simple_no_params"
 
-    def _run_data(self, x, params):
+    def _run_data(self, x, params, idx=None):
         return x
 
     def _name_output_columns(self, output_data, meta, params):
@@ -114,7 +114,7 @@ class SimpleLearnableOp(
     def name(cls) -> str:
         return "simple_learnable"
 
-    def _run_data(self, x, params):
+    def _run_data(self, x, params, idx=None):
         return x
 
     def _name_output_columns(self, output_data, meta, params):
@@ -134,7 +134,7 @@ class SimpleLearnableOpWithConfig(
     def name(cls) -> str:
         return "learnable_with_config"
 
-    def _run_data(self, x, params):
+    def _run_data(self, x, params, idx=None):
         return x
 
     def _name_output_columns(self, output_data, meta, params):
@@ -154,7 +154,7 @@ class SupervisedLearnableOp(
     def name(cls) -> str:
         return "supervised_learnable"
 
-    def _run_data(self, x, params):
+    def _run_data(self, x, params, idx=None):
         return x
 
     def _name_output_columns(self, output_data, meta, params):
@@ -175,7 +175,7 @@ class SimpleBiOperator(BiNumericOperator[None, None, None]):
     def name(cls) -> str:
         return "simple_bi"
 
-    def _run_data(self, x_real, x_pred, params):
+    def _run_data(self, x_real, x_pred, params, real_idx=None, pred_idx=None):
         return x_pred
 
 
@@ -186,7 +186,7 @@ class OperatorWithEO(NumericOperator[MyExtraOutput, None, None]):
     def name(cls) -> str:
         return "op_with_eo"
 
-    def _run_data(self, x, params):
+    def _run_data(self, x, params, idx=None):
         return x, MyExtraOutput(info="computed")
 
     def _name_output_columns(self, output_data, meta, params):

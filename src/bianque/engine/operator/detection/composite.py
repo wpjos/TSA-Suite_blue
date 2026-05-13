@@ -47,6 +47,7 @@ from pathlib import Path
 from typing import Any, Self
 
 import numpy as np
+import pandas as pd
 from pydantic import BaseModel, ConfigDict
 
 from bianque.engine.operator.base import (
@@ -505,7 +506,7 @@ class CompositeScorer(
         """
         _fit_pipeline(self._operators, x)
 
-    def _run_data(self, x: np.ndarray, params: None) -> tuple[np.ndarray, CompositeScorerExtraOutput]:
+    def _run_data(self, x: np.ndarray, params: None, idx: pd.Index | None = None) -> tuple[np.ndarray, CompositeScorerExtraOutput]:
         """
         串行推理各子算子
 
@@ -674,7 +675,7 @@ class CompositeDetector(
         if isinstance(self._decider, LearnableOperatorMixin):
             self._decider.fit(decider_input)
 
-    def _run_data(self, x: np.ndarray, params: None) -> tuple[np.ndarray, CompositeDetectorExtraOutput]:
+    def _run_data(self, x: np.ndarray, params: None, idx: pd.Index | None = None) -> tuple[np.ndarray, CompositeDetectorExtraOutput]:
         """
         串行推理各子算子
 

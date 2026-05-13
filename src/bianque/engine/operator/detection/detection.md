@@ -13,14 +13,15 @@ src/bianque/engine/operator/detection/
 ├── base_detection.py        # 四层基类定义 + Mixin（开发核心）
 ├── composite.py             # 组合算子（CompositeScorer / CompositeDetector）
 ├── mean_predictor.py        # 均值预测器（Predictor 示例）
-├── pca.py                   # PCA 预测器（Predictor 示例）
-├── cicada.py                # CICADA 预测器（Mixture-of-Experts + MAML 重构型 Predictor）
+├── pca.py                   # PCA 预测器 + 评分器 + 检测器
 ├── residual_scorer.py       # 残差评分器（BiNumericOperator Scorer 示例）
 ├── mean_scorer.py           # 均值评分器（NumericOperator Scorer 示例）
 ├── threshold_decider.py     # 固定阈值决策器（Decider 示例）
 ├── percentile_decider.py    # 百分位阈值决策器（Decider 示例）
 ├── zscore.py                # Z-Score 评分器 + 检测器
 ├── knn.py                   # KNN 评分器 + 检测器
+├── xihe.py                  # 羲和异常检测评分器（预训练模型示例）
+├── cicada.py                # CICADA 预测器（Mixture-of-Experts + MAML 重构型 Predictor）
 └── detection.md             # 本文档
 ```
 
@@ -64,15 +65,16 @@ src/bianque/engine/hpo/
 
 新架构采用 Mixin 组合代替深层继承。每个算子通过选择需要的 Mixin 来组合能力：
 
-| Mixin                              | 提供的能力                 |
-|------------------------------------|-----------------------|
-| `UnsupervisedNumericOperatorMixin` | 无监督训练（`fit(x)`）       |
-| `SupervisedNumericOperatorMixin`   | 有监督训练（`fit(x, y)`）    |
-| `SingleScorerMixin`                | 单分数输出（列名 `["score"]`） |
-| `MultiScorerMixin`                 | 多变量分数输出（列名继承输入）       |
-| `BaseDeciderMixin`                 | 决策器输出（列名 `["label"]`） |
-| `NumericOperator`                  | 单输入算子基类               |
-| `BiNumericOperator`                | 双输入算子基类（tuple 输入）     |
+| Mixin                              | 提供的能力                  |
+|------------------------------------|------------------------|
+| `UnsupervisedNumericOperatorMixin` | 无监督训练（`fit(x)`）        |
+| `SupervisedNumericOperatorMixin`   | 有监督训练（`fit(x, y)`）     |
+| `SingleScorerMixin`                | 单分数输出（列名 `["score"]`）  |
+| `MultiScorerMixin`                 | 多变量分数输出（列名继承输入）        |
+| `NumericBatchRunMixin`             | 批量推理生成器能力（`batch_run`） |
+| `BaseDeciderMixin`                 | 决策器输出（列名 `["label"]`）  |
+| `NumericOperator`                  | 单输入算子基类                |
+| `BiNumericOperator`                | 双输入算子基类（tuple 输入）      |
 
 **组合示例**：
 
@@ -147,13 +149,14 @@ class MyConfig(BaseModel):
 from typing import Annotated
 from bianque.engine.hpo import SearchHint
 
+
 class AdvancedConfig(BaseModel):
     # log 尺度采样
     learning_rate: Annotated[float, Field(default=0.001, ge=1e-5, le=1e-1),
-                             SearchHint(log=True)]
+    SearchHint(log=True)]
     # 非1步长
     batch_size: Annotated[int, Field(default=32, ge=8, le=256),
-                          SearchHint(step=8)]
+    SearchHint(step=8)]
 ```
 
 > **注意**：数值型字段必须有 `ge`/`le`/`gt`/`lt` 中至少一个边界约束才会参与 HPO 搜索；无约束的字段自动跳过。详细说明请参阅 `bianque/engine/hpo/hpo.md`。
@@ -371,7 +374,7 @@ scores, eo = scorer.run(test_data)
 scorer = CompositeScorer(operators=[
     PCAPredictor(n_components=5),
     ResidualScorer(metric="mse"),  # BiNumericOperator
-    ZScoreScorer(),                # NumericOperator
+    ZScoreScorer(),  # NumericOperator
 ])
 scorer.fit(train_data)
 scores, eo = scorer.run(test_data)
@@ -479,17 +482,20 @@ detector.save("./model_dir")
 
 ### 3.7 已实现算子列表
 
-| 算子                | 类型        | 输入类型              | 是否可训练 | 有 EO |
-|-------------------|-----------|-------------------|-------|------|
-| PCAPredictor      | Predictor | NumericOperator   | ✅     | ❌    |
-| MeanPredictor     | Predictor | NumericOperator   | ✅     | ❌    |
-| CICADAPredictor   | Predictor | NumericOperator   | ✅     | ❌    |
-| ZScoreScorer      | Scorer    | NumericOperator   | ✅     | ❌    |
-| KNNScorer         | Scorer    | NumericOperator   | ✅     | ✅    |
-| MeanScorer        | Scorer    | NumericOperator   | ❌     | ❌    |
-| ResidualScorer    | Scorer    | BiNumericOperator | ❌     | ✅    |
-| PercentileDecider | Decider   | NumericOperator   | ✅     | ✅    |
-| ThresholdDecider  | Decider   | NumericOperator   | ❌     | ❌    |
+| 算子                | 类型        | 输入类型              | 是否可训练  | 有 EO |
+|-------------------|-----------|-------------------|--------|------|
+| PCAPredictor      | Predictor | NumericOperator   | ✅      | ✅    |
+| MeanPredictor     | Predictor | NumericOperator   | ✅      | ❌    |
+| CICADAPredictor   | Predictor | NumericOperator   | ✅      | ❌    |
+| PCAScorer         | Scorer    | NumericOperator   | ✅      | ✅    |
+| ZScoreScorer      | Scorer    | NumericOperator   | ✅      | ❌    |
+| KNNScorer         | Scorer    | NumericOperator   | ✅      | ✅    |
+| MeanScorer        | Scorer    | NumericOperator   | ❌      | ❌    |
+| ResidualScorer    | Scorer    | BiNumericOperator | ❌      | ✅    |
+| XiHeGammaScorer   | Scorer    | NumericOperator   | ❌(预训练) | ✅    |
+| PCADetector       | Detector  | NumericOperator   | ✅      | ✅    |
+| PercentileDecider | Decider   | NumericOperator   | ✅      | ✅    |
+| ThresholdDecider  | Decider   | NumericOperator   | ❌      | ❌    |
 
 ---
 
@@ -507,10 +513,10 @@ trainer = HPOTrainer(ZScoreDetector, metric_op, n_trials=50, top_k=3)
 result = trainer.fit(train_data, val_labels=val_labels, val_split=0.3)
 
 # 访问结果
-print(result.best_params)       # 最优参数
-print(result.best_score)        # 最优分数（dict）
+print(result.best_params)  # 最优参数
+print(result.best_score)  # 最优分数（dict）
 print(result.best_score_value)  # 最优主分数值（float）
-print(result.best_operator)     # 最优算子实例
+print(result.best_operator)  # 最优算子实例
 ```
 
 > **注意**：HPO 模块的详细说明请参阅 `bianque/engine/hpo/hpo.md`。
@@ -544,7 +550,7 @@ Mixin 的 `_fit` 模板方法会在调用 `_fit_data` 后自动设置 `self._fit
 if scorer.has_extra_output():
     result, eo = scorer.run(data)  # tuple[NumericData, EO]
 else:
-    result = scorer.run(data)      # NumericData
+    result = scorer.run(data)  # NumericData
 ```
 
 ### 5.4 save / load

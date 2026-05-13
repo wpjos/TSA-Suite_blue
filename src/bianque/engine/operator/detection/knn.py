@@ -30,6 +30,7 @@ KNN 异常检测算子
 from enum import Enum
 
 import numpy as np
+import pandas as pd
 from pydantic import BaseModel, Field
 
 from bianque.engine.operator.base import NumericOperator, UnsupervisedNumericOperatorMixin
@@ -201,7 +202,7 @@ class KNNScorer(SingleScorerMixin[None],
         self._index.fit(x)
         self._train_data = x
 
-    def _run_data(self, x: np.ndarray, params: None) -> (
+    def _run_data(self, x: np.ndarray, params: None, idx: pd.Index | None = None) -> (
             np.ndarray | tuple[np.ndarray, KNNScorerExtraOutput]):
         """
         计算 KNN 异常分数
@@ -341,7 +342,7 @@ class KNNDetector(UnsupervisedNumericOperatorMixin[None],
         # 步骤3: 训练决策器（使用训练分数）
         self._decider.fit(scores)
 
-    def _run_data(self, x: np.ndarray, params: None) -> np.ndarray:
+    def _run_data(self, x: np.ndarray, params: None, idx: pd.Index | None = None) -> np.ndarray:
         """
         检测推理: Scorer → Decider
 

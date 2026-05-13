@@ -24,6 +24,7 @@ Z-Score 异常检测算子
 """
 
 import numpy as np
+import pandas as pd
 from pydantic import BaseModel, Field
 
 from bianque.engine.operator.base import NumericOperator, UnsupervisedNumericOperatorMixin
@@ -116,7 +117,7 @@ class ZScoreScorer(SingleScorerMixin[None],
         # 零标准差保护: 常数特征的 z-score 应为 0，将 std=0 替换为 1 使 (x-mean)/std = 0
         self._std[self._std == 0] = 1.0
 
-    def _run_data(self, x: np.ndarray, params: None) -> np.ndarray:
+    def _run_data(self, x: np.ndarray, params: None, idx: pd.Index | None = None) -> np.ndarray:
         """
         计算最大绝对 Z-Score
 
@@ -211,7 +212,7 @@ class ZScoreDetector(UnsupervisedNumericOperatorMixin[None],
         # 训练评分器（ThresholdDecider 不需要训练）
         self._scorer.fit(x)
 
-    def _run_data(self, x: np.ndarray, params: None) -> np.ndarray:
+    def _run_data(self, x: np.ndarray, params: None, idx: pd.Index | None = None) -> np.ndarray:
         """
         检测推理: ZScoreScorer → ThresholdDecider
 

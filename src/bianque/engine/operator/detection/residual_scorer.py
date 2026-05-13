@@ -36,6 +36,7 @@
 from typing import Literal
 
 import numpy as np
+import pandas as pd
 from pydantic import BaseModel, Field, ConfigDict
 
 from bianque.engine.operator.base import BiNumericOperator
@@ -108,7 +109,8 @@ class ResidualScorer(SingleScorerMixin[None],
         """
         return "residual_scorer"
 
-    def _run_data(self, x_real: np.ndarray, x_pred: np.ndarray, params: None) -> (
+    def _run_data(self, x_real: np.ndarray, x_pred: np.ndarray, params: None,
+                  real_idx: pd.Index | None = None, pred_idx: pd.Index | None = None) -> (
             np.ndarray | tuple[np.ndarray, ResidualScorerExtraOutput]):
         """
         计算真实值与预测值之间的残差异常分数
@@ -170,7 +172,8 @@ class ResidualMapScorer(MultiScorerMixin[None],
         """
         return "residual_map_scorer"
 
-    def _run_data(self, x_real: np.ndarray, x_pred: np.ndarray, params: None) -> np.ndarray:
+    def _run_data(self, x_real: np.ndarray, x_pred: np.ndarray, params: None,
+                  real_idx: pd.Index | None = None, pred_idx: pd.Index | None = None) -> np.ndarray:
         """
         计算逐样本残差
 

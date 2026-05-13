@@ -501,15 +501,15 @@ def _hps_spectral_normalize(spectrum: np.ndarray, win_bins: int) -> np.ndarray:
     baseline = np.full(spectrum.size, np.nan)
     fill1 = min(baseline.size, smoothed.size - shift)
     if fill1 > 0:
-        baseline[:fill1] = smoothed[shift : shift + fill1]
+        baseline[:fill1] = smoothed[shift: shift + fill1]
     start2 = 3 * win_bins
     fill2 = min(baseline.size - start2, smoothed.size)
     if fill2 > 0:
-        region = baseline[start2 : start2 + fill2]
+        region = baseline[start2: start2 + fill2]
         mask = ~np.isnan(region)
         region[mask] = (region[mask] + smoothed[: np.sum(mask)]) / 2.0
         region[~mask] = smoothed[: np.sum(~mask)]
-        baseline[start2 : start2 + fill2] = region
+        baseline[start2: start2 + fill2] = region
     bl = np.nan_to_num(baseline, nan=1.0)
     bl = np.maximum(bl, 1e-10)
     return spectrum / bl
@@ -541,7 +541,7 @@ def _hps_core(spectrum: np.ndarray, n_harmonics: int = 5, normalize_win: int | N
 
 
 def _hps_pick_peak_validated(product: np.ndarray, spectrum: np.ndarray,
-                              bin_min: int, bin_max: int, n_harmonics: int = 5) -> int | None:
+                             bin_min: int, bin_max: int, n_harmonics: int = 5) -> int | None:
     """谐波验证选峰（HPS+ 核心策略）。
 
     在 HPS 产品中找峰值候选，对每个候选统计其谐波族在原始频谱中的峰个数和突出度，
@@ -551,7 +551,7 @@ def _hps_pick_peak_validated(product: np.ndarray, spectrum: np.ndarray,
     bin_max = min(bin_max, product.size - 1)
     if bin_min >= bin_max:
         return None
-    segment = product[bin_min : bin_max + 1]
+    segment = product[bin_min: bin_max + 1]
     padded = np.pad(segment, 1, constant_values=-np.inf)
     is_peak = (segment > padded[:-2]) & (segment > padded[2:])
     if not np.any(is_peak):
@@ -597,7 +597,7 @@ def _hps_pick_peak_validated(product: np.ndarray, spectrum: np.ndarray,
 
 
 def _speed_rpm_1d(sig: np.ndarray, sample_rate: float, speed_min: float, speed_max: float,
-                   n_harmonics: int = 5, speed_delta: float = 10.0, std_min: float = 0.01) -> float:
+                  n_harmonics: int = 5, speed_delta: float = 10.0, std_min: float = 0.01) -> float:
     """转速估计（HPS+ 方法）。
 
     Args:
@@ -666,6 +666,7 @@ class SpeedRpmConfig(SampleRateFeatureConfig):
 
 class MeanSquareFeature(IndependentMapFeature[BaseFeatureConfig]):
     """均方值特征: mean(x^2)。"""
+
     @classmethod
     def name(cls) -> str:
         return "mean_square_feature"
@@ -680,6 +681,7 @@ class MeanSquareFeature(IndependentMapFeature[BaseFeatureConfig]):
 
 class VarianceFeature(IndependentMapFeature[BaseFeatureConfig]):
     """方差特征: var(x, ddof=1)。"""
+
     @classmethod
     def name(cls) -> str:
         return "variance_feature"
@@ -694,6 +696,7 @@ class VarianceFeature(IndependentMapFeature[BaseFeatureConfig]):
 
 class RmsFeature(IndependentMapFeature[BaseFeatureConfig]):
     """有效值特征: sqrt(mean(x^2))。"""
+
     @classmethod
     def name(cls) -> str:
         return "rms_feature"
@@ -708,6 +711,7 @@ class RmsFeature(IndependentMapFeature[BaseFeatureConfig]):
 
 class PeakPeakFeature(IndependentMapFeature[BaseFeatureConfig]):
     """峰峰值特征: max(x) - min(x)。"""
+
     @classmethod
     def name(cls) -> str:
         return "peak_peak_feature"
@@ -722,6 +726,7 @@ class PeakPeakFeature(IndependentMapFeature[BaseFeatureConfig]):
 
 class ShapeFactorFeature(IndependentMapFeature[BaseFeatureConfig]):
     """波形因子: RMS / mean(|x|)。"""
+
     @classmethod
     def name(cls) -> str:
         return "shape_factor_feature"
@@ -736,6 +741,7 @@ class ShapeFactorFeature(IndependentMapFeature[BaseFeatureConfig]):
 
 class CrestFeature(IndependentMapFeature[BaseFeatureConfig]):
     """峰值因子: max(|x|) / RMS。"""
+
     @classmethod
     def name(cls) -> str:
         return "crest_feature"
@@ -750,6 +756,7 @@ class CrestFeature(IndependentMapFeature[BaseFeatureConfig]):
 
 class ImpulseFeature(IndependentMapFeature[BaseFeatureConfig]):
     """脉冲因子: max(|x|) / mean(|x|)。"""
+
     @classmethod
     def name(cls) -> str:
         return "impulse_feature"
@@ -764,6 +771,7 @@ class ImpulseFeature(IndependentMapFeature[BaseFeatureConfig]):
 
 class ClearanceFeature(IndependentMapFeature[BaseFeatureConfig]):
     """裕度因子: max(|x|) / (mean(sqrt(|x|)))^2。"""
+
     @classmethod
     def name(cls) -> str:
         return "clearance_feature"
@@ -778,6 +786,7 @@ class ClearanceFeature(IndependentMapFeature[BaseFeatureConfig]):
 
 class SkewnessFeature(IndependentMapFeature[BaseFeatureConfig]):
     """偏斜度特征。"""
+
     @classmethod
     def name(cls) -> str:
         return "skewness_feature"
@@ -792,6 +801,7 @@ class SkewnessFeature(IndependentMapFeature[BaseFeatureConfig]):
 
 class KurtosisFeature(IndependentMapFeature[BaseFeatureConfig]):
     """超额峭度特征。"""
+
     @classmethod
     def name(cls) -> str:
         return "kurtosis_feature"
@@ -806,6 +816,7 @@ class KurtosisFeature(IndependentMapFeature[BaseFeatureConfig]):
 
 class GiniIndexFeature(IndependentMapFeature[BaseFeatureConfig]):
     """Gini 指数特征（假设非负值）。"""
+
     @classmethod
     def name(cls) -> str:
         return "gini_index_feature"
@@ -824,6 +835,7 @@ class GiniIndexFeature(IndependentMapFeature[BaseFeatureConfig]):
 
 class SpectralEntropyFeature(IndependentMapFeature[SampleRateFeatureConfig]):
     """功率谱熵特征（归一化 Shannon 熵）。"""
+
     @classmethod
     def name(cls) -> str:
         return "spectral_entropy_feature"
@@ -838,6 +850,7 @@ class SpectralEntropyFeature(IndependentMapFeature[SampleRateFeatureConfig]):
 
 class RoughnessFeature(IndependentMapFeature[SampleRateFeatureConfig]):
     """粗糙度特征（心理声学，Zwicker & Fastl 模型）。"""
+
     @classmethod
     def name(cls) -> str:
         return "roughness_feature"
@@ -856,6 +869,7 @@ class RoughnessFeature(IndependentMapFeature[SampleRateFeatureConfig]):
 
 class SharpnessFeature(IndependentMapFeature[SampleRateFeatureConfig]):
     """锐度特征（心理声学，Zwicker DIN 45692）。"""
+
     @classmethod
     def name(cls) -> str:
         return "sharpness_feature"
@@ -878,6 +892,7 @@ class SharpnessFeature(IndependentMapFeature[SampleRateFeatureConfig]):
 
 class SpectralCentroidFeature(IndependentMapFeature[SampleRateFeatureConfig]):
     """频谱重心特征。"""
+
     @classmethod
     def name(cls) -> str:
         return "spectral_centroid_feature"
@@ -896,6 +911,7 @@ class SpectralCentroidFeature(IndependentMapFeature[SampleRateFeatureConfig]):
 
 class MeanSquareFrequencyFeature(IndependentMapFeature[SampleRateFeatureConfig]):
     """均方频率特征。"""
+
     @classmethod
     def name(cls) -> str:
         return "mean_square_frequency_feature"
@@ -914,6 +930,7 @@ class MeanSquareFrequencyFeature(IndependentMapFeature[SampleRateFeatureConfig])
 
 class RmsFrequencyFeature(IndependentMapFeature[SampleRateFeatureConfig]):
     """均方根频率特征。"""
+
     @classmethod
     def name(cls) -> str:
         return "rms_frequency_feature"
@@ -932,6 +949,7 @@ class RmsFrequencyFeature(IndependentMapFeature[SampleRateFeatureConfig]):
 
 class FrequencyVarianceFeature(IndependentMapFeature[SampleRateFeatureConfig]):
     """频率方差特征。"""
+
     @classmethod
     def name(cls) -> str:
         return "frequency_variance_feature"
@@ -950,6 +968,7 @@ class FrequencyVarianceFeature(IndependentMapFeature[SampleRateFeatureConfig]):
 
 class FrequencyStdFeature(IndependentMapFeature[SampleRateFeatureConfig]):
     """频率标准差特征。"""
+
     @classmethod
     def name(cls) -> str:
         return "frequency_std_feature"
@@ -972,6 +991,7 @@ class FrequencyStdFeature(IndependentMapFeature[SampleRateFeatureConfig]):
 
 class EnvelopeRmsFeature(IndependentMapFeature[BaseFeatureConfig]):
     """包络 RMS 特征: Hilbert 包络 → RMS。"""
+
     @classmethod
     def name(cls) -> str:
         return "envelope_rms_feature"
@@ -986,6 +1006,7 @@ class EnvelopeRmsFeature(IndependentMapFeature[BaseFeatureConfig]):
 
 class AverageKurtosisFeature(IndependentMapFeature[AverageKurtosisConfig]):
     """分段峭度均值特征。"""
+
     @classmethod
     def name(cls) -> str:
         return "average_kurtosis_feature"
@@ -1004,6 +1025,7 @@ class AverageKurtosisFeature(IndependentMapFeature[AverageKurtosisConfig]):
 
 class HnrFeature(IndependentMapFeature[BaseFeatureConfig]):
     """谐噪比特征（基于自相关峰值近似，dB）。"""
+
     @classmethod
     def name(cls) -> str:
         return "hnr_feature"
@@ -1022,6 +1044,7 @@ class HnrFeature(IndependentMapFeature[BaseFeatureConfig]):
 
 class BandKurtosisFeature(IndependentMapFeature[BandFeatureConfig]):
     """频带峭度特征: 带通滤波 → 峭度。"""
+
     @classmethod
     def name(cls) -> str:
         return "band_kurtosis_feature"
@@ -1053,6 +1076,7 @@ class BandKurtosisFeature(IndependentMapFeature[BandFeatureConfig]):
 
 class BandRmsFeature(IndependentMapFeature[BandFeatureConfig]):
     """频带 RMS 特征: 带通滤波 → RMS。"""
+
     @classmethod
     def name(cls) -> str:
         return "band_rms_feature"
@@ -1084,6 +1108,7 @@ class BandRmsFeature(IndependentMapFeature[BandFeatureConfig]):
 
 class BandHnrFeature(IndependentMapFeature[BandFeatureConfig]):
     """频带 HNR 特征: 带通滤波 → HNR。"""
+
     @classmethod
     def name(cls) -> str:
         return "band_hnr_feature"
@@ -1122,6 +1147,7 @@ class SpeedRpmFeature(IndependentMapFeature[SpeedRpmConfig]):
 
     基于谐波乘积谱 + 谐波验证选峰，适合旋转设备振动/声音信号的转速估计。
     """
+
     @classmethod
     def name(cls) -> str:
         return "speed_rpm_feature"

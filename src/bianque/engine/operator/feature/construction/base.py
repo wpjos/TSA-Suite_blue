@@ -616,7 +616,7 @@ class MapFeatureMixin(BaseFeatureMixin[FS], metaclass=ABCMeta):
         - 无需处理填充（Padding）和对齐（Alignment）。
     """
 
-    def _run_data(self, x: np.ndarray, params: None) -> np.ndarray:
+    def _run_data(self, x: np.ndarray, params: None, idx: pd.Index | None = None) -> np.ndarray:
         """逐行映射模式的核心数据处理方法
 
         Args:
@@ -644,7 +644,7 @@ class WindowFeatureMixin(BaseFeatureMixin[FS], metaclass=ABCMeta):
         3. ``_adjust_index``: 根据是否填充及对齐方式调整输出索引与原始索引的对应关系。
     """
 
-    def _adjust_data(self, x: np.ndarray, params: None) -> np.ndarray:
+    def _adjust_data(self, x: np.ndarray, params: None, idx: pd.Index | None = None) -> np.ndarray:
         """根据 padding + alignment 对 ndarray 进行边界填充
 
         当 ``config.padding`` 为 ``None`` 时不填充，直接返回原数据；
@@ -690,7 +690,7 @@ class WindowFeatureMixin(BaseFeatureMixin[FS], metaclass=ABCMeta):
         # 类型错误抛出
         raise TypeError(f"填充模式类型无效，应为 Padding 枚举或数字类型，当前类型: {type(padding)}")
 
-    def _run_data(self, x: np.ndarray, params: None) -> np.ndarray:
+    def _run_data(self, x: np.ndarray, params: None, idx: pd.Index | None = None) -> np.ndarray:
         """对数据应用滑动窗口，逐窗口调用 ``compute`` 并收集结果
 
         输入数据应已根据填充配置进行了预处理（由 ``_adjust_data`` 处理）。

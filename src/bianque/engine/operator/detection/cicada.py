@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Literal, Self
 
 import numpy as np
+import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
 
 from bianque.engine.operator.base import UnsupervisedNumericOperatorMixin
@@ -248,7 +249,7 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
     # 推理
     # ------------------------------------------------------------------
 
-    def _run_data(self, x: np.ndarray, params: None) -> np.ndarray:
+    def _run_data(self, x: np.ndarray, params: None, idx: pd.Index | None = None) -> np.ndarray:
         x_float32 = x.astype(np.float32) if x.dtype != np.float32 else x
         return self._model.reconstruct(x_float32)
 
