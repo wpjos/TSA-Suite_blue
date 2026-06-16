@@ -13,7 +13,7 @@ CICADA 异常检测算子
 示例用法::
 
     # 训练 + 推理
-    predictor = CICADAPredictor(name=["MLP"], win_size=10, num_channels=3, epochs=5)
+    predictor = CICADAPredictor(experts=["MLP"], win_size=10, num_channels=3, epochs=5)
     predictor.fit(train_data)
     recon = predictor.run(test_data)
 """
@@ -42,7 +42,7 @@ class CICADAPredictorConfig(BaseModel):
     覆盖 CICADA 构造函数的全部参数。num_channels 为 None 时自动从训练数据推断。
 
     Attributes:
-        name: 专家模型名称列表
+        experts: 专家模型名称列表（对应 bq_cicada CICADA 的 experts 参数）
         win_size: 滑动窗口长度
         stride: 训练滑动步长
         num_channels: 输入特征维度，None 时自动推断
@@ -59,8 +59,10 @@ class CICADAPredictorConfig(BaseModel):
         test_meta_lr: 测试元学习率
         meta_split_threshold: 专家分裂阈值
         lr_split_factor: 分裂学习率因子
-        ml_lambda: 专家损失权重
-        penalty_rate: 元学习率正则化系数
+        lambda_self: self_loss 权重（旧 ml_lambda）
+        lambda_recon: recon_loss 权重
+        lambda_mse: mse_loss 权重（仅 semi 使用）
+        lambda_lr: lr_loss 权重（旧 penalty_rate）
         lr: 基础学习率
         ttlr: 测试时学习率
         gamma: 衰减因子
@@ -76,7 +78,7 @@ class CICADAPredictorConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     # -- 专家配置 --
-    name: list[str] = Field(
+    experts: list[str] = Field(
         default=["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"],
         description="专家模型名称列表",
     )
@@ -112,8 +114,10 @@ class CICADAPredictorConfig(BaseModel):
     test_meta_lr: float = Field(default=1e-3, gt=0.0, description="测试元学习率")
     meta_split_threshold: float = Field(default=5e-4, gt=0.0, description="专家分裂阈值")
     lr_split_factor: float = Field(default=1.414, gt=1.0, description="分裂学习率因子")
-    ml_lambda: float = Field(default=10.0, gt=0.0, description="专家损失权重")
-    penalty_rate: float = Field(default=0.01, ge=0.0, description="元学习率正则化系数")
+    lambda_self: float = Field(default=10.0, gt=0.0, description="self_loss 权重")
+    lambda_recon: float = Field(default=1.0, gt=0.0, description="recon_loss 权重")
+    lambda_mse: float = Field(default=1.0, gt=0.0, description="mse_loss 权重（仅 semi）")
+    lambda_lr: float = Field(default=0.1, ge=0.0, description="lr_loss 权重")
 
     # -- 优化器 --
     lr: float = Field(default=1e-3, gt=0.0, description="基础学习率")
@@ -150,7 +154,7 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
         - ``_run_data``: 调用 CICADA reconstruct 返回重构值
 
     注意:
-        - CICADA 包为延迟导入，使用前需确保已安装 cicada-ad
+        - bq_cicada 包为延迟导入，使用前需确保已安装 bq_cicada
         - num_channels 在 Config 中为 None 时自动从训练数据推断
         - 输入数据长度需 >= win_size，否则无法创建滑动窗口
 
@@ -191,7 +195,7 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
     # ------------------------------------------------------------------
 
     def _fit_data(self, x: np.ndarray, params: None) -> None:
-        from cicada import CICADA  # noqa: lazy import
+        from bq_cicada import CICADA  # noqa: lazy import
 
         # 校验输入维度（fit 管线不做此检查，需在 _fit_data 内部校验）
         if x.ndim != 2:
@@ -211,7 +215,7 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
         self._num_channels_detected = num_channels
 
         self._model = CICADA(
-            name=list(self.config.name),
+            experts=list(self.config.experts),
             win_size=self.config.win_size,
             stride=self.config.stride,
             num_channels=num_channels,
@@ -231,8 +235,10 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
             lr_split_factor=self.config.lr_split_factor,
             lr=self.config.lr,
             ttlr=self.config.ttlr,
-            ml_lambda=self.config.ml_lambda,
-            penalty_rate=self.config.penalty_rate,
+            lambda_self=self.config.lambda_self,
+            lambda_recon=self.config.lambda_recon,
+            lambda_mse=self.config.lambda_mse,
+            lambda_lr=self.config.lambda_lr,
             adaptive_add=self.config.adaptive_add,
             epoch_add=self.config.epoch_add,
             close_epochs=self.config.close_epochs,

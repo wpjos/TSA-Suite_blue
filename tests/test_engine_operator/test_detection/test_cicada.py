@@ -62,7 +62,7 @@ def test_df(test_data):
 def _make_predictor(**overrides):
     """创建最小配置的 CICADAPredictor（用于加速测试）"""
     defaults = dict(
-        name=["MLP"],
+        experts=["MLP"],
         win_size=10,
         num_channels=3,
         batch_size=32,
@@ -90,7 +90,7 @@ class TestCICADAPredictorConfig:
         预期：所有默认值正确
         """
         cfg = CICADAPredictorConfig()
-        assert cfg.name == ["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"]
+        assert cfg.experts == ["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"]
         assert cfg.win_size == 5
         assert cfg.stride == 1
         assert cfg.num_channels is None

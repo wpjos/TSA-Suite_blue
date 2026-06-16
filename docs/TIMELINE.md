@@ -291,6 +291,17 @@ BianQue-Suite 项目
   │         - pytest pythonpath=["src"]，无需手动 PYTHONPATH
   │         - CICADA 22 个测试全部通过
   │
+  ├─ 06-16  CICADA 接口对齐 bq_cicada 1.0.0
+  │         上游 bq_cicada 升级到 1.0.0，重构了多个参数命名，导致旧封装无法导入。
+  │         本次按"最小修复"方案打通 semi 变体接口（reg / sup / semi_class 留待后续）：
+  │         - 包名：cicada → bq_cicada（pyproject 新增 cicada extra，本地 path 依赖）
+  │         - Config 字段：name → experts
+  │         - Loss 权重：ml_lambda → lambda_self；penalty_rate → lambda_lr；
+  │           新增 lambda_recon / lambda_mse（与 bq_cicada 默认值对齐）
+  │         - 测试同步两处字段名；CICADA 22 个测试全绿（detection 81/81）
+  │         - 待办：reg / sup / semi_class 三变体的 Predictor 适配，
+  │           以及 4 变体共有的新参数（mask_*, top_k, loss_components 等）暴露
+  │
   └─ master 为当前开发版本
 ```
 
