@@ -44,6 +44,11 @@ cicada = [
     "bq-cicada",
     "scikit-learn>=1.8.0",
 ]
+# bq-rcd 是本地包（path 见 [tool.uv.sources]），未发布到 PyPI。
+# 安装：uv sync --extra rcd
+rcd = [
+    "bq-rcd",
+]
 all = [
     "bianque-suite[hpo,knn]",
 ]
@@ -82,3 +87,4 @@ ignore = ["E501"]
 
 [tool.uv.sources]
 bq-cicada = { path = "../bq_cicada" }
+bq-rcd = { path = "../bq_rcd" }
