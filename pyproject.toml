@@ -7,15 +7,10 @@ name = "bianque-suite"
 version = "0.1.1"
 description = "BianQue-Suite: A modular anomaly detection framework with four-layer operator architecture"
 requires-python = ">=3.11"
-license = { text = "MIT" }
-authors = [
-    { name = "BianQue Team" },
-]
 keywords = ["anomaly-detection", "time-series", "feature-engineering", "predictive-maintenance"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -44,10 +39,9 @@ cicada = [
     "bq-cicada",
     "scikit-learn>=1.8.0",
 ]
-# bq-rcd 是本地包（path 见 [tool.uv.sources]），未发布到 PyPI。
-# 安装：uv sync --extra rcd
+# bq-rcd 通过 whl 安装（不再走本地 path）。安装：uv sync --extra rcd
 rcd = [
-    "bq-rcd",
+    "bq-rcd==0.5.2",
 ]
 all = [
     "bianque-suite[hpo,knn]",
@@ -87,4 +81,3 @@ ignore = ["E501"]
 
 [tool.uv.sources]
 bq-cicada = { path = "../bq_cicada" }
-bq-rcd = { path = "../bq_rcd" }
