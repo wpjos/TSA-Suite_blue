@@ -28,7 +28,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bianque.engine.operator.feature.construction.signal_feature import (
+from tsas.engine.operator.feature.construction.signal_feature import (
     # Config
     SampleRateFeatureConfig,
     BandFeatureConfig,

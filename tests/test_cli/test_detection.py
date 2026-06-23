@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bianque.engine.operator.cli.detection import main, create_registry
+from tsas.engine.operator.cli.detection import main, create_registry
 
 
 # ============================================================================
@@ -229,3 +229,15 @@ class TestCreateDetectionRegistry:
         assert registry.discovered is True
         assert 'knn_scorer' in registry.list_all()
         assert 'knn_detector' in registry.list_all()
+
+    def test_registry_includes_predictors(self):
+        """
+        目的：验证注册表现在包含 Predictor 类型的算子
+        输入：无
+        预期：mean_predictor、pca_predictor 等 Predictor 算子可被发现
+        """
+        registry = create_registry()
+        operators = registry.list_all()
+        # Predictor 现在应该包含在注册表中
+        assert 'mean_predictor' in operators
+        assert 'pca_predictor' in operators

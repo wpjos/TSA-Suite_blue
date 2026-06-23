@@ -23,7 +23,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from bianque.engine.operator.cli.io import load_data, save_data, save_json
+from tsas.engine.operator.cli.io import load_data, save_data, save_json
 
 
 # ============================================================================

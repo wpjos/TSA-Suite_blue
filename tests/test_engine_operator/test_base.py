@@ -30,7 +30,7 @@ import pytest
 from loguru import logger
 from pydantic import BaseModel, Field, ValidationError
 
-from bianque.engine.operator.base import (
+from tsas.engine.operator.base import (
     BaseOperator,
     LearnableOperatorMixin,
     NumericOperator,
@@ -83,6 +83,10 @@ class SimpleOperator(NumericOperator[None, SimpleConfig, SimpleRunParams]):
     def name(cls) -> str:
         return "simple_operator"
 
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        return (1, 0, 0)
+
     def _run_data(self, x, params, idx=None):
         return x
 
@@ -96,6 +100,10 @@ class SimpleOperatorNoParams(NumericOperator[None, None, None]):
     @classmethod
     def name(cls) -> str:
         return "simple_no_params"
+
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        return (1, 0, 0)
 
     def _run_data(self, x, params, idx=None):
         return x
@@ -113,6 +121,10 @@ class SimpleLearnableOp(
     @classmethod
     def name(cls) -> str:
         return "simple_learnable"
+
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        return (1, 0, 0)
 
     def _run_data(self, x, params, idx=None):
         return x
@@ -134,6 +146,10 @@ class SimpleLearnableOpWithConfig(
     def name(cls) -> str:
         return "learnable_with_config"
 
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        return (1, 0, 0)
+
     def _run_data(self, x, params, idx=None):
         return x
 
@@ -153,6 +169,10 @@ class SupervisedLearnableOp(
     @classmethod
     def name(cls) -> str:
         return "supervised_learnable"
+
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        return (1, 0, 0)
 
     def _run_data(self, x, params, idx=None):
         return x
@@ -175,6 +195,10 @@ class SimpleBiOperator(BiNumericOperator[None, None, None]):
     def name(cls) -> str:
         return "simple_bi"
 
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        return (1, 0, 0)
+
     def _run_data(self, x_real, x_pred, params, real_idx=None, pred_idx=None):
         return x_pred
 
@@ -185,6 +209,10 @@ class OperatorWithEO(NumericOperator[MyExtraOutput, None, None]):
     @classmethod
     def name(cls) -> str:
         return "op_with_eo"
+
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        return (1, 0, 0)
 
     def _run_data(self, x, params, idx=None):
         return x, MyExtraOutput(info="computed")
@@ -607,6 +635,10 @@ class TestLearnableInitSubclass:
                 def name(cls) -> str:
                     return "bad"
 
+                @classmethod
+                def version(cls) -> tuple[int, ...]:
+                    return (1, 0, 0)
+
                 def _run_data(self, x, params):
                     return x
 
@@ -632,6 +664,10 @@ class TestLearnableInitSubclass:
             @classmethod
             def name(cls) -> str:
                 return "intermediate"
+
+            @classmethod
+            def version(cls) -> tuple[int, ...]:
+                return (1, 0, 0)
 
             def _run_data(self, x, params):
                 return x

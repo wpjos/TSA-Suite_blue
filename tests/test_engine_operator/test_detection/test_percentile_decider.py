@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 from pandas import DataFrame
 
-from bianque.engine.operator.detection.percentile_decider import (
+from tsas.engine.operator.detection.percentile_decider import (
     PercentileDecider,
     PercentileDeciderExtraOutput,
 )
@@ -116,3 +116,43 @@ class TestPercentileDecider:
         # 约 50% 应判定为异常（严格大于中位数）
         anomaly_rate = labels.sum() / len(labels)
         assert 0.4 <= anomaly_rate <= 0.6
+
+
+# ============================================================================
+# PercentileDecider Save/Load Roundtrip 测试
+# ============================================================================
+
+class TestPercentileDeciderSaveLoad:
+    """测试 PercentileDecider 持久化 roundtrip"""
+
+    def test_save_load_roundtrip(self, train_scores, test_scores, tmp_path):
+        """
+        目的：验证 save → load 后推理结果一致
+        预期：loaded decider 的输出与原始 decider 完全相同
+        """
+        decider = PercentileDecider(percentile=95.0)
+        decider.fit(train_scores)
+        original_labels, original_eo = decider.run(test_scores)
+
+        save_dir = tmp_path / 'percentile_decider'
+        decider.save(save_dir)
+        loaded = PercentileDecider.load(save_dir)
+
+        loaded_labels, loaded_eo = loaded.run(test_scores)
+        np.testing.assert_array_equal(original_labels, loaded_labels)
+        assert loaded_eo.threshold == original_eo.threshold
+
+    def test_loaded_threshold_restored(self, train_scores, tmp_path):
+        """
+        目的：验证加载后阈值正确恢复
+        预期：_threshold 与原始值一致，_fitted 为 True
+        """
+        decider = PercentileDecider(percentile=95.0)
+        decider.fit(train_scores)
+
+        save_dir = tmp_path / 'percentile_decider'
+        decider.save(save_dir)
+        loaded = PercentileDecider.load(save_dir)
+
+        assert loaded.is_fitted
+        np.testing.assert_allclose(loaded._threshold, decider._threshold)

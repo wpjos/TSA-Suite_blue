@@ -27,7 +27,7 @@ import pandas as pd
 import pytest
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from bianque.engine.operator.feature.construction.base import (
+from tsas.engine.operator.feature.construction.base import (
     Alignment,
     Padding,
     BaseFeatureConfig,
@@ -71,6 +71,10 @@ class _ConcreteMapFeature(IndependentMapFeature[_SimpleConfig]):
     def name(cls) -> str:
         return "concrete_map_feature"
 
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        return (1, 0, 0)
+
     @staticmethod
     def compute(x: np.ndarray, *, state=None, **params) -> np.ndarray:
         return x * 2
@@ -85,6 +89,10 @@ class _ConcreteWindowFeature(IndependentWindowFeature[_SimpleWindowConfig]):
     @classmethod
     def name(cls) -> str:
         return "concrete_window_feature"
+
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        return (1, 0, 0)
 
     @staticmethod
     def compute(x: np.ndarray, *, state=None, **params) -> np.ndarray:
@@ -101,6 +109,10 @@ class _ConcreteJointMapFeature(JointMapFeature[_SimpleConfig]):
     def name(cls) -> str:
         return "concrete_joint_map_feature"
 
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        return (1, 0, 0)
+
     @staticmethod
     def compute(x: np.ndarray, *, state=None, **params) -> np.ndarray:
         return np.sum(x, axis=1)
@@ -115,6 +127,10 @@ class _ConcreteJointWindowFeature(JointWindowFeature[_SimpleWindowConfig]):
     @classmethod
     def name(cls) -> str:
         return "concrete_joint_window_feature"
+
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        return (1, 0, 0)
 
     @staticmethod
     def compute(x: np.ndarray, *, state=None, **params) -> np.ndarray:
@@ -136,6 +152,10 @@ class _ConcreteLearnableMapFeature(LearnableIndependentMapFeature[_SimpleConfig,
     @classmethod
     def name(cls) -> str:
         return "concrete_learnable_map_feature"
+
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        return (1, 0, 0)
 
     @staticmethod
     def train(x: np.ndarray, **params) -> _LearnableState:
@@ -176,6 +196,10 @@ class _ConcreteLearnableWindowFeature(LearnableIndependentWindowFeature[_SimpleW
     def name(cls) -> str:
         return "concrete_learnable_window_feature"
 
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        return (1, 0, 0)
+
     @staticmethod
     def train(x: np.ndarray, **params) -> _LearnableState:
         offset = np.atleast_1d(x.mean(axis=0))
@@ -198,6 +222,10 @@ class _ConcreteLearnableJointMapFeature(LearnableJointMapFeature[_SimpleConfig, 
     def name(cls) -> str:
         return "concrete_learnable_joint_map_feature"
 
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        return (1, 0, 0)
+
     @staticmethod
     def train(x: np.ndarray, **params) -> _LearnableState:
         offset = np.atleast_1d(x.mean(axis=0))
@@ -219,6 +247,10 @@ class _ConcreteLearnableJointWindowFeature(LearnableJointWindowFeature[_SimpleWi
     @classmethod
     def name(cls) -> str:
         return "concrete_learnable_joint_window_feature"
+
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        return (1, 0, 0)
 
     @staticmethod
     def train(x: np.ndarray, **params) -> _LearnableState:

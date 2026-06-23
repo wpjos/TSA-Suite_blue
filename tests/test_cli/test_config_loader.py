@@ -18,7 +18,7 @@ import json
 
 import pytest
 
-from bianque.engine.operator.cli.config_loader import load_config
+from tsas.engine.operator.cli.config_loader import load_config
 
 
 class TestLoadConfigJSON:

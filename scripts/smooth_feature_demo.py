@@ -3,11 +3,11 @@
 """
 低频特征增强算子一键调用 Demo
 
-展示如何通过 BianQue-Suite CLI 和 Python API 两种方式
+展示如何通过 TSA-Suite CLI 和 Python API 两种方式
 调用套餐八的 9 个 smooth 特征。
 
 用法:
-    # 1. CLI 方式（需要先 pip install bianque_suite）
+    # 1. CLI 方式（需要先 pip install tsa_suite）
     python scripts/smooth_feature_demo.py --mode cli
 
     # 2. Python API 方式
@@ -54,7 +54,7 @@ def generate_demo_data(n_samples: int = 200, seed: int = 42) -> pd.DataFrame:
 
 def run_api_mode():
     """Python API 方式调用 9 个 smooth 特征。"""
-    from bianque.engine.operator.feature.construction.smooth_feature import (
+    from tsas.engine.operator.feature.construction.smooth_feature import (
         SmoothFeatureConfig,
         SmoothMeanFeature,
         SmoothMinFeature,
@@ -135,13 +135,13 @@ def run_cli_mode():
     }
 
     print("\n1. 查看所有可用算子:")
-    print("   python -m bianque.engine.operator.cli feature_construction help")
+    print("   python -m tsas.engine.operator.cli feature_construction help")
 
     print("\n2. 查看单个算子详情:")
-    print("   python -m bianque.engine.operator.cli feature_construction help smooth_mean_feature")
+    print("   python -m tsas.engine.operator.cli feature_construction help smooth_mean_feature")
 
     print("\n3. 运行算子 (需要 input_columns 中每格为 list/ndarray 格式):")
-    print("   python -m bianque.engine.operator.cli feature_construction run \\")
+    print("   python -m tsas.engine.operator.cli feature_construction run \\")
     print("       --input data.csv \\")
     print("       --output result.csv \\")
     print("       --config config.json")
@@ -152,7 +152,7 @@ def run_cli_mode():
     # 实际执行 help 命令验证 CLI 可用
     print("\n5. 验证 CLI 可用性:")
     result = subprocess.run(
-        [sys.executable, "-m", "bianque.engine.operator.cli", "feature_construction", "help"],
+        [sys.executable, "-m", "tsas.engine.operator.cli", "feature_construction", "help"],
         capture_output=True, text=True,
     )
     if result.returncode == 0:
@@ -167,7 +167,7 @@ def run_cli_mode():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="BianQue-Suite 低频特征增强 Demo")
+    parser = argparse.ArgumentParser(description="TSA-Suite 低频特征增强 Demo")
     parser.add_argument(
         "--mode", choices=["api", "cli", "both"], default="both",
         help="运行模式: api / cli / both (默认 both)",

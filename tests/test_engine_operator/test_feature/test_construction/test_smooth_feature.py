@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bianque.engine.operator.feature.construction.smooth_feature import (
+from tsas.engine.operator.feature.construction.smooth_feature import (
     SmoothFeatureConfig,
     SmoothMeanFeature,
     SmoothMinFeature,

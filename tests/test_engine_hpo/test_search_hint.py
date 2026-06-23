@@ -26,15 +26,15 @@ import numpy as np
 import pytest
 from pydantic import BaseModel, Field
 
-from bianque.engine.hpo.search_hint import (
+from tsas.engine.hpo.search_hint import (
     SearchHint,
     config_to_optuna_suggestions,
     extract_search_space,
     extract_search_space_from_operator,
 )
-from bianque.engine.operator.detection.base import BaseDetector
-from bianque.engine.operator.detection.zscore import ZScoreDetector, ZScoreDetectorConfig
-from bianque.engine.operator.detection.knn import KNNDetector, KNNDetectorConfig
+from tsas.engine.operator.detection.base import BaseDetector
+from tsas.engine.operator.detection.zscore import ZScoreDetector, ZScoreDetectorConfig
+from tsas.engine.operator.detection.knn import KNNDetector, KNNDetectorConfig
 
 
 # ============================================================================
@@ -317,7 +317,7 @@ class TestExtractSearchSpace:
         输入：ZScoreScorerConfig
         预期：threshold 字段 float 类型，范围 [1.0, 10.0]
         """
-        from bianque.engine.operator.detection.zscore import ZScoreScorerConfig
+        from tsas.engine.operator.detection.zscore import ZScoreScorerConfig
         space = extract_search_space(ZScoreScorerConfig)
         assert "threshold" in space
         assert space["threshold"]["type"] == "float"
@@ -330,7 +330,7 @@ class TestExtractSearchSpace:
         输入：KNNScorerConfig
         预期：3 个字段全部正确提取（n_neighbors, distance_metric, score_method）
         """
-        from bianque.engine.operator.detection.knn import KNNScorerConfig
+        from tsas.engine.operator.detection.knn import KNNScorerConfig
         space = extract_search_space(KNNScorerConfig)
         assert space["n_neighbors"]["type"] == "int"
         assert space["distance_metric"]["type"] == "cat"
@@ -344,7 +344,7 @@ class TestExtractSearchSpace:
         输入：KNNDetectorConfig
         预期：4 个字段，含 percentile float 字段
         """
-        from bianque.engine.operator.detection.knn import KNNDetectorConfig
+        from tsas.engine.operator.detection.knn import KNNDetectorConfig
         space = extract_search_space(KNNDetectorConfig)
         assert "percentile" in space
         assert space["percentile"]["type"] == "float"
@@ -390,10 +390,10 @@ class TestExtractSearchSpaceFromOperator:
         输入：带 Predictor+Scorer+Decider 的 Composite
         预期：各字段带正确前缀
         """
-        from bianque.engine.operator.detection.composite import CompositeDetector
-        from bianque.engine.operator.detection.pca import PCAPredictor, PCAPredictorConfig
-        from bianque.engine.operator.detection.residual_scorer import ResidualScorer
-        from bianque.engine.operator.detection.percentile_decider import PercentileDecider
+        from tsas.engine.operator.detection.composite import CompositeDetector
+        from tsas.engine.operator.detection.pca import PCAPredictor, PCAPredictorConfig
+        from tsas.engine.operator.detection.residual_scorer import ResidualScorer
+        from tsas.engine.operator.detection.percentile_decider import PercentileDecider
 
         comp = CompositeDetector(operators=[
             PCAPredictor(config=PCAPredictorConfig(n_components=5)),
@@ -416,7 +416,7 @@ class TestExtractSearchSpaceFromOperator:
         输入：ThresholdDecider 实例
         预期：包含 threshold 字段
         """
-        from bianque.engine.operator.detection.threshold_decider import ThresholdDecider
+        from tsas.engine.operator.detection.threshold_decider import ThresholdDecider
         decider = ThresholdDecider()
         space = extract_search_space_from_operator(decider)
         # ThresholdDeciderConfig 有 threshold 字段

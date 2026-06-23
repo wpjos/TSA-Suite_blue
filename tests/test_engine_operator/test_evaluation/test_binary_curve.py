@@ -20,7 +20,7 @@
 import numpy as np
 import pytest
 
-from bianque.engine.operator.evaluation.binary_curve import (
+from tsas.engine.operator.evaluation.binary_curve import (
     BinaryClassificationCurveResult,
     BinaryClassificationCurveConfig,
     BinaryClassificationCurve,

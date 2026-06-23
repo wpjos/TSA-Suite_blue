@@ -1,4 +1,4 @@
-# BianQue-Suite 已知问题
+# TSA-Suite 已知问题
 
 > 记录项目中尚未解决的已知问题，便于开发者排查。
 
@@ -8,7 +8,7 @@
 
 **影响范围**: `tests/test_engine_operator/test_evaluation/` 下所有测试文件
 
-**现象**: pytest 收集测试时抛出 `ModuleNotFoundError: No module named 'bianque.engine.operator.evaluation.point_adjust'`
+**现象**: pytest 收集测试时抛出 `ModuleNotFoundError: No module named 'tsas.engine.operator.evaluation.point_adjust'`
 
 **原因**: `evaluation/__init__.py` 中 import 了 `point_adjust` 模块，但该文件尚未创建
 

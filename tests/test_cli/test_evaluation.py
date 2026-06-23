@@ -21,7 +21,7 @@ import pandas as pd
 import pytest
 from pydantic import BaseModel
 
-from bianque.engine.operator.cli.evaluation import (
+from tsas.engine.operator.cli.evaluation import (
     main,
     create_registry,
     _resolve_output_key,

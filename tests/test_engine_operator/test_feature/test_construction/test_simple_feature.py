@@ -23,11 +23,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bianque.engine.operator.feature.construction.base import (
+from tsas.engine.operator.feature.construction.base import (
     Alignment,
     Padding,
 )
-from bianque.engine.operator.feature.construction.simple_feature import (
+from tsas.engine.operator.feature.construction.simple_feature import (
     SquareConfig,
     SquareFeature,
     PolynomialConfig,

@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 from pandas import DataFrame
 
-from bianque.engine.operator.detection.pca import (
+from tsas.engine.operator.detection.pca import (
     PCAPredictor,
     PCAPredictorExtraOutput,
     PCAScorer,
@@ -325,3 +325,125 @@ class TestPCADetector:
         预期：返回 "pca_detector"
         """
         assert PCADetector.name() == "pca_detector"
+
+
+# ============================================================================
+# PCAPredictor Save/Load Roundtrip 测试
+# ============================================================================
+
+class TestPCAPredictorSaveLoad:
+    """测试 PCAPredictor 持久化 roundtrip"""
+
+    def test_save_load_roundtrip(self, train_data, test_data, tmp_path):
+        """
+        目的：验证 save → load 后推理结果一致
+        预期：loaded predictor 的输出与原始 predictor 完全相同
+        """
+        predictor = PCAPredictor(n_components=2)
+        predictor.fit(train_data)
+        original_pred, original_eo = predictor.run(test_data)
+
+        save_dir = tmp_path / 'pca_predictor'
+        predictor.save(save_dir)
+        loaded = PCAPredictor.load(save_dir)
+
+        loaded_pred, loaded_eo = loaded.run(test_data)
+        np.testing.assert_allclose(original_pred, loaded_pred)
+
+    def test_loaded_state_restored(self, train_data, tmp_path):
+        """
+        目的：验证加载后内部状态正确恢复
+        预期：_mean、_components、_explained_variance_ratio 已恢复，_fitted 为 True
+        """
+        predictor = PCAPredictor(n_components=2)
+        predictor.fit(train_data)
+
+        save_dir = tmp_path / 'pca_predictor'
+        predictor.save(save_dir)
+        loaded = PCAPredictor.load(save_dir)
+
+        assert loaded.is_fitted
+        np.testing.assert_allclose(loaded._mean, predictor._mean)
+        np.testing.assert_allclose(loaded._components, predictor._components)
+        np.testing.assert_allclose(
+            loaded._explained_variance_ratio, predictor._explained_variance_ratio
+        )
+
+
+# ============================================================================
+# PCAScorer Save/Load Roundtrip 测试
+# ============================================================================
+
+class TestPCAScorerSaveLoad:
+    """测试 PCAScorer 持久化 roundtrip"""
+
+    def test_save_load_roundtrip(self, train_data, test_data, tmp_path):
+        """
+        目的：验证 save → load 后推理结果一致
+        预期：loaded scorer 的输出与原始 scorer 完全相同
+        """
+        scorer = PCAScorer(n_components=2)
+        scorer.fit(train_data)
+        original_scores, _ = scorer.run(test_data)
+
+        save_dir = tmp_path / 'pca_scorer'
+        scorer.save(save_dir)
+        loaded = PCAScorer.load(save_dir)
+
+        loaded_scores, _ = loaded.run(test_data)
+        np.testing.assert_allclose(original_scores, loaded_scores)
+
+    def test_loaded_state_restored(self, train_data, tmp_path):
+        """
+        目的：验证加载后子组件状态正确恢复
+        预期：_predictor 已恢复，_fitted 为 True
+        """
+        scorer = PCAScorer(n_components=2)
+        scorer.fit(train_data)
+
+        save_dir = tmp_path / 'pca_scorer'
+        scorer.save(save_dir)
+        loaded = PCAScorer.load(save_dir)
+
+        assert loaded.is_fitted
+        assert loaded._predictor.is_fitted
+
+
+# ============================================================================
+# PCADetector Save/Load Roundtrip 测试
+# ============================================================================
+
+class TestPCADetectorSaveLoad:
+    """测试 PCADetector 持久化 roundtrip"""
+
+    def test_save_load_roundtrip(self, train_data, test_data, tmp_path):
+        """
+        目的：验证 save → load 后推理结果一致
+        预期：loaded detector 的输出与原始 detector 完全相同
+        """
+        detector = PCADetector(n_components=2, percentile=95.0)
+        detector.fit(train_data)
+        original_labels, _ = detector.run(test_data)
+
+        save_dir = tmp_path / 'pca_detector'
+        detector.save(save_dir)
+        loaded = PCADetector.load(save_dir)
+
+        loaded_labels, _ = loaded.run(test_data)
+        np.testing.assert_array_equal(original_labels, loaded_labels)
+
+    def test_loaded_state_restored(self, train_data, tmp_path):
+        """
+        目的：验证加载后子组件状态正确恢复
+        预期：_scorer 和 _decider 已恢复，_fitted 为 True
+        """
+        detector = PCADetector(n_components=2, percentile=95.0)
+        detector.fit(train_data)
+
+        save_dir = tmp_path / 'pca_detector'
+        detector.save(save_dir)
+        loaded = PCADetector.load(save_dir)
+
+        assert loaded.is_fitted
+        assert loaded._scorer.is_fitted
+        assert loaded._decider.is_fitted

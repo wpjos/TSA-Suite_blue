@@ -19,7 +19,7 @@ HPO 优化结果数据模型单元测试
 import numpy as np
 import pytest
 
-from bianque.engine.hpo.result import HPOResult, TrialInfo
+from tsas.engine.hpo.result import HPOResult, TrialInfo
 
 
 class TestTrialInfo:
@@ -47,7 +47,7 @@ class TestTrialInfo:
         输入：operator=某算子实例
         预期：operator 正确存储
         """
-        from bianque.engine.operator.detection.zscore import ZScoreDetector
+        from tsas.engine.operator.detection.zscore import ZScoreDetector
         detector = ZScoreDetector()
         trial = TrialInfo(
             number=1,
@@ -219,7 +219,7 @@ class TestHPOResult:
         输入：best_trials=[TrialInfo(operator=detector)]
         预期：best_operator is detector
         """
-        from bianque.engine.operator.detection.zscore import ZScoreDetector
+        from tsas.engine.operator.detection.zscore import ZScoreDetector
         detector = ZScoreDetector()
         t1 = TrialInfo(number=0, params={}, scores={"f1": 0.9}, operator=detector)
         result = HPOResult(best_trials=[t1])

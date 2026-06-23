@@ -56,7 +56,7 @@ wheels = [
 ]
 
 [[package]]
-name = "bianque-suite"
+name = "tsa-suite"
 version = "0.1.1"
 source = { editable = "." }
 dependencies = [
@@ -97,7 +97,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "annotated-types" },
-    { name = "bianque-suite", extras = ["hpo", "knn"], marker = "extra == 'all'" },
+    { name = "tsa-suite", extras = ["hpo", "knn"], marker = "extra == 'all'" },
     { name = "bq-cicada", marker = "extra == 'cicada'", directory = "../bq_cicada" },
     { name = "bq-rcd", marker = "extra == 'rcd'", directory = "../bq_rcd" },
     { name = "loguru" },

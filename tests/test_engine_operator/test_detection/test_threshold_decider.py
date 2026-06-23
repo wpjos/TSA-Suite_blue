@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 from pandas import DataFrame
 
-from bianque.engine.operator.detection.threshold_decider import ThresholdDecider
+from tsas.engine.operator.detection.threshold_decider import ThresholdDecider
 
 
 # ============================================================================

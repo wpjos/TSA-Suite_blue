@@ -22,19 +22,19 @@ import numpy as np
 import pytest
 from pydantic import BaseModel, Field
 
-from bianque.engine.hpo.search_hint import (
+from tsas.engine.hpo.search_hint import (
     extract_search_space,
     extract_search_space_from_operator,
     config_to_optuna_suggestions,
 )
-from bianque.engine.hpo.trainer import (
+from tsas.engine.hpo.trainer import (
     HPOTrainer,
     _rebuild_operator,
     _resolve_validation_strategy,
 )
-from bianque.engine.operator.base import BaseOperator
-from bianque.engine.operator.detection.knn import KNNDetector, KNNDetectorConfig
-from bianque.engine.operator.detection.zscore import ZScoreDetector, ZScoreDetectorConfig
+from tsas.engine.operator.base import BaseOperator
+from tsas.engine.operator.detection.knn import KNNDetector, KNNDetectorConfig
+from tsas.engine.operator.detection.zscore import ZScoreDetector, ZScoreDetectorConfig
 
 
 # ============================================================================
@@ -351,10 +351,10 @@ class TestBuildOperator:
         输入：Composite 实例 + 带前缀的参数
         预期：子算子被重建
         """
-        from bianque.engine.operator.detection.composite import CompositeDetector
-        from bianque.engine.operator.detection.pca import PCAPredictor, PCAPredictorConfig
-        from bianque.engine.operator.detection.residual_scorer import ResidualScorer
-        from bianque.engine.operator.detection.percentile_decider import PercentileDecider
+        from tsas.engine.operator.detection.composite import CompositeDetector
+        from tsas.engine.operator.detection.pca import PCAPredictor, PCAPredictorConfig
+        from tsas.engine.operator.detection.residual_scorer import ResidualScorer
+        from tsas.engine.operator.detection.percentile_decider import PercentileDecider
 
         comp = CompositeDetector(operators=[
             PCAPredictor(config=PCAPredictorConfig(n_components=5)),
@@ -471,7 +471,7 @@ class TestHPOTrainerFit:
         输入：任意合法参数
         预期：返回 HPOResult 实例
         """
-        from bianque.engine.hpo.result import HPOResult as HR
+        from tsas.engine.hpo.result import HPOResult as HR
         trainer = HPOTrainer(ZScoreDetector, metric_op, n_trials=2, random_seed=42)
         result = trainer.fit(train_data, val_labels=val_labels, val_split=0.3)
         assert isinstance(result, HR)
@@ -521,7 +521,7 @@ class TestHPOTrainerFit:
         输入：算子无搜索空间字段
         预期：抛出 ValueError
         """
-        from bianque.engine.operator.detection.threshold_decider import ThresholdDecider
+        from tsas.engine.operator.detection.threshold_decider import ThresholdDecider
         trainer = HPOTrainer(ThresholdDecider, _MockMetric(), n_trials=1,
                              search_space={})
         with pytest.raises(ValueError, match="搜索空间为空"):
@@ -607,13 +607,16 @@ class TestResolveSearchSpaceErrors:
         输入：一个 _config_type=None 的算子类
         预期：抛出 ValueError
         """
-        from bianque.engine.operator.base import BaseOperator
+        from tsas.engine.operator.base import BaseOperator
 
         # 创建一个没有泛型参数（因此 _config_type=None）的算子
         class _NoConfigOp(BaseOperator):
             @classmethod
             def name(cls):
                 return "no_config"
+            @classmethod
+            def version(cls) -> tuple[int, ...]:
+                return (1, 0, 0)
             def _run(self, x, *, params=None):
                 return x
 
@@ -764,13 +767,16 @@ class TestRebuildOperatorFullCoverage:
         输入：一个 _config_type=None 且无 _operators 属性的算子实例
         预期：返回该类型的新实例（使用默认构造）
         """
-        from bianque.engine.operator.base import BaseOperator
+        from tsas.engine.operator.base import BaseOperator
 
         class _PlainOp(BaseOperator):
             """无 _config_type 的普通算子"""
             @classmethod
             def name(cls):
                 return "plain_op"
+            @classmethod
+            def version(cls) -> tuple[int, ...]:
+                return (1, 0, 0)
             def _run(self, x, *, params=None):
                 return x
 
@@ -816,12 +822,15 @@ class TestOperatorTypeErrors:
         输入：一个 _config_type=None 的算子类
         预期：返回默认构造的实例
         """
-        from bianque.engine.operator.base import BaseOperator
+        from tsas.engine.operator.base import BaseOperator
 
         class _NoCfgOp(BaseOperator):
             @classmethod
             def name(cls):
                 return "no_cfg"
+            @classmethod
+            def version(cls) -> tuple[int, ...]:
+                return (1, 0, 0)
             def _run(self, x, *, params=None):
                 return x
 

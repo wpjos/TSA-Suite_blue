@@ -25,7 +25,7 @@ import pytest
 from pandas import DataFrame
 from pydantic import ValidationError
 
-from bianque.engine.operator.detection.time_rcd import (
+from tsas.engine.operator.detection.time_rcd import (
     TimeRCDScorer,
     TimeRCDScorerConfig,
 )

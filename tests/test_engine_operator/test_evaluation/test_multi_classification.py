@@ -20,7 +20,7 @@
 import numpy as np
 import pytest
 
-from bianque.engine.operator.evaluation.multi_classification import (
+from tsas.engine.operator.evaluation.multi_classification import (
     PerLabelMetricResult,
     MultiClassificationMetricResult,
     MultiClassificationMetricConfig,

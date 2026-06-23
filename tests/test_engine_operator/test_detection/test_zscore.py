@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 from pandas import DataFrame
 
-from bianque.engine.operator.detection.zscore import (
+from tsas.engine.operator.detection.zscore import (
     ZScoreScorer,
     ZScoreDetector,
 )
@@ -188,3 +188,81 @@ class TestZScoreDetector:
         detector = ZScoreDetector()
         with pytest.raises(RuntimeError):
             detector.run(test_data)
+
+
+# ============================================================================
+# ZScoreScorer Save/Load Roundtrip 测试
+# ============================================================================
+
+class TestZScoreScorerSaveLoad:
+    """测试 ZScoreScorer 持久化 roundtrip"""
+
+    def test_save_load_roundtrip(self, train_data, test_data, tmp_path):
+        """
+        目的：验证 save → load 后推理结果一致
+        预期：loaded scorer 的输出与原始 scorer 完全相同
+        """
+        scorer = ZScoreScorer()
+        scorer.fit(train_data)
+        original_scores = scorer.run(test_data)
+
+        save_dir = tmp_path / 'zscore_scorer'
+        scorer.save(save_dir)
+        loaded = ZScoreScorer.load(save_dir)
+
+        loaded_scores = loaded.run(test_data)
+        np.testing.assert_array_equal(original_scores, loaded_scores)
+
+    def test_loaded_state_restored(self, train_data, tmp_path):
+        """
+        目的：验证加载后内部状态正确恢复
+        预期：_mean、_std 与原始值一致，_fitted 为 True
+        """
+        scorer = ZScoreScorer()
+        scorer.fit(train_data)
+
+        save_dir = tmp_path / 'zscore_scorer'
+        scorer.save(save_dir)
+        loaded = ZScoreScorer.load(save_dir)
+
+        np.testing.assert_allclose(loaded._mean, scorer._mean)
+        np.testing.assert_allclose(loaded._std, scorer._std)
+        assert loaded.is_fitted
+
+# ============================================================================
+# ZScoreDetector Save/Load Roundtrip 测试
+# ============================================================================
+
+class TestZScoreDetectorSaveLoad:
+    """测试 ZScoreDetector 持久化 roundtrip"""
+
+    def test_save_load_roundtrip(self, train_data, test_data, tmp_path):
+        """
+        目的：验证 save → load 后推理结果一致
+        预期：loaded detector 的输出与原始 detector 完全相同
+        """
+        detector = ZScoreDetector(threshold=3.0)
+        detector.fit(train_data)
+        original_labels = detector.run(test_data)
+
+        save_dir = tmp_path / 'zscore_detector'
+        detector.save(save_dir)
+        loaded = ZScoreDetector.load(save_dir)
+
+        loaded_labels = loaded.run(test_data)
+        np.testing.assert_array_equal(original_labels, loaded_labels)
+
+    def test_loaded_state_restored(self, train_data, tmp_path):
+        """
+        目的：验证加载后子组件状态正确恢复
+        预期：_scorer 已恢复，_fitted 为 True
+        """
+        detector = ZScoreDetector(threshold=3.0)
+        detector.fit(train_data)
+
+        save_dir = tmp_path / 'zscore_detector'
+        detector.save(save_dir)
+        loaded = ZScoreDetector.load(save_dir)
+
+        assert loaded.is_fitted
+        assert loaded._scorer.is_fitted

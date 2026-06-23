@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bianque.engine.operator.cli.feature_construction import main, create_registry
+from tsas.engine.operator.cli.feature_construction import main, create_registry
 
 
 # ============================================================================

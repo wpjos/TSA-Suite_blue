@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "bianque-suite"
+name = "tsa-suite"
 version = "0.1.1"
-description = "BianQue-Suite: A modular anomaly detection framework with four-layer operator architecture"
+description = "TSA-Suite: A modular anomaly detection framework with four-layer operator architecture"
 requires-python = ">=3.11"
 keywords = ["anomaly-detection", "time-series", "feature-engineering", "predictive-maintenance"]
 classifiers = [
@@ -44,7 +44,7 @@ rcd = [
     "bq-rcd==0.5.2",
 ]
 all = [
-    "bianque-suite[hpo,knn]",
+    "tsa-suite[hpo,knn]",
 ]
 
 [dependency-groups]
@@ -56,14 +56,14 @@ test = [
 ]
 
 [project.scripts]
-bianque = "bianque.cli:main"
+tsas = "tsas.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/bianque"]
+packages = ["src/tsas"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "src/bianque",
+    "src/tsas",
 ]
 
 [tool.pytest.ini_options]

@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 from pandas import DataFrame
 
-from bianque.engine.operator.detection.knn import (
+from tsas.engine.operator.detection.knn import (
     KNNScorer,
     KNNDetector,
     KNNDistanceMetric,
@@ -227,3 +227,83 @@ class TestKNNDetector:
         detector = KNNDetector(n_neighbors=5, percentile=95.0)
         with pytest.raises(RuntimeError):
             detector.run(test_data)
+
+
+# ============================================================================
+# KNNScorer Save/Load Roundtrip 测试
+# ============================================================================
+
+class TestKNNScorerSaveLoad:
+    """测试 KNNScorer 持久化 roundtrip"""
+
+    def test_save_load_roundtrip(self, train_data, test_data, tmp_path):
+        """
+        目的：验证 save → load 后推理结果一致
+        预期：loaded scorer 的输出与原始 scorer 完全相同
+        """
+        scorer = KNNScorer(n_neighbors=5)
+        scorer.fit(train_data)
+        original_scores, original_eo = scorer.run(test_data)
+
+        save_dir = tmp_path / 'knn_scorer'
+        scorer.save(save_dir)
+        loaded = KNNScorer.load(save_dir)
+
+        loaded_scores, loaded_eo = loaded.run(test_data)
+        np.testing.assert_allclose(original_scores, loaded_scores)
+
+    def test_loaded_state_restored(self, train_data, tmp_path):
+        """
+        目的：验证加载后内部状态正确恢复
+        预期：_index 和 _train_data 已恢复，_fitted 为 True
+        """
+        scorer = KNNScorer(n_neighbors=5)
+        scorer.fit(train_data)
+
+        save_dir = tmp_path / 'knn_scorer'
+        scorer.save(save_dir)
+        loaded = KNNScorer.load(save_dir)
+
+        assert loaded.is_fitted
+        assert loaded._index is not None
+        np.testing.assert_array_equal(loaded._train_data, train_data)
+
+
+# ============================================================================
+# KNNDetector Save/Load Roundtrip 测试
+# ============================================================================
+
+class TestKNNDetectorSaveLoad:
+    """测试 KNNDetector 持久化 roundtrip"""
+
+    def test_save_load_roundtrip(self, train_data, test_data, tmp_path):
+        """
+        目的：验证 save → load 后推理结果一致
+        预期：loaded detector 的输出与原始 detector 完全相同
+        """
+        detector = KNNDetector(n_neighbors=5, percentile=95.0)
+        detector.fit(train_data)
+        original_labels = detector.run(test_data)
+
+        save_dir = tmp_path / 'knn_detector'
+        detector.save(save_dir)
+        loaded = KNNDetector.load(save_dir)
+
+        loaded_labels = loaded.run(test_data)
+        np.testing.assert_array_equal(original_labels, loaded_labels)
+
+    def test_loaded_state_restored(self, train_data, tmp_path):
+        """
+        目的：验证加载后子组件状态正确恢复
+        预期：_scorer 和 _decider 已恢复，_fitted 为 True
+        """
+        detector = KNNDetector(n_neighbors=5, percentile=95.0)
+        detector.fit(train_data)
+
+        save_dir = tmp_path / 'knn_detector'
+        detector.save(save_dir)
+        loaded = KNNDetector.load(save_dir)
+
+        assert loaded.is_fitted
+        assert loaded._scorer.is_fitted
+        assert loaded._decider.is_fitted

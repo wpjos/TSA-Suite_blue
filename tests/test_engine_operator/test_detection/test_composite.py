@@ -24,7 +24,7 @@ import numpy as np
 import pytest
 from pandas import DataFrame
 
-from bianque.engine.operator.detection.composite import (
+from tsas.engine.operator.detection.composite import (
     CompositeScorer,
     CompositeScorerExtraOutput,
     CompositeDetector,
@@ -32,14 +32,14 @@ from bianque.engine.operator.detection.composite import (
     _ensure_2d,
     _extract_main_output,
 )
-from bianque.engine.operator.detection.knn import KNNScorer
-from bianque.engine.operator.detection.mean_predictor import MeanPredictor
-from bianque.engine.operator.detection.mean_scorer import MeanScorer
-from bianque.engine.operator.detection.pca import PCAPredictor
-from bianque.engine.operator.detection.percentile_decider import PercentileDecider
-from bianque.engine.operator.detection.residual_scorer import ResidualScorer
-from bianque.engine.operator.detection.threshold_decider import ThresholdDecider
-from bianque.engine.operator.detection.zscore import ZScoreScorer
+from tsas.engine.operator.detection.knn import KNNScorer
+from tsas.engine.operator.detection.mean_predictor import MeanPredictor
+from tsas.engine.operator.detection.mean_scorer import MeanScorer
+from tsas.engine.operator.detection.pca import PCAPredictor
+from tsas.engine.operator.detection.percentile_decider import PercentileDecider
+from tsas.engine.operator.detection.residual_scorer import ResidualScorer
+from tsas.engine.operator.detection.threshold_decider import ThresholdDecider
+from tsas.engine.operator.detection.zscore import ZScoreScorer
 
 
 # ============================================================================

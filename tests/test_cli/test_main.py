@@ -15,7 +15,7 @@ CLI 统一分发入口单元测试
 
 import pytest
 
-from bianque.engine.operator.cli.__main__ import main
+from tsas.engine.operator.cli.__main__ import main
 
 
 class TestMainDispatcher:
