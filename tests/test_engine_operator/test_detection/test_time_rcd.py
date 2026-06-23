@@ -28,6 +28,7 @@ from pydantic import ValidationError
 from tsas.engine.operator.detection.time_rcd import (
     TimeRCDScorer,
     TimeRCDScorerConfig,
+    TimeRCDScorerRunParams,
 )
 
 
@@ -97,7 +98,11 @@ class TestTimeRCDScorerConfig:
         assert cfg.patch_size == 16
         assert cfg.num_features is None
         assert cfg.checkpoint is None
-        assert cfg.score_form == "prob"
+
+    def test_run_params_defaults(self):
+        """score_form 默认为 'prob'。"""
+        rp = TimeRCDScorerRunParams()
+        assert rp.score_form == "prob"
 
     def test_config_frozen(self):
         """Config 不可变。"""
@@ -115,17 +120,21 @@ class TestTimeRCDScorerConfig:
         with pytest.raises(ValidationError):
             TimeRCDScorerConfig(batch_size=-1)
 
-    def test_config_score_form_validation(self):
+    def test_run_params_score_form_validation(self):
         """score_form 仅接受 'prob' / 'logit'。"""
         with pytest.raises(ValidationError):
-            TimeRCDScorerConfig(score_form="invalid")
+            TimeRCDScorerRunParams(score_form="invalid")
 
     def test_config_custom_values(self):
         """自定义参数正确传递。"""
-        cfg = TimeRCDScorerConfig(win_size=200, batch_size=4, score_form="logit")
+        cfg = TimeRCDScorerConfig(win_size=200, batch_size=4)
         assert cfg.win_size == 200
         assert cfg.batch_size == 4
-        assert cfg.score_form == "logit"
+
+    def test_run_params_custom_score_form(self):
+        """RunParams 可在 'prob' / 'logit' 间切换。"""
+        rp = TimeRCDScorerRunParams(score_form="logit")
+        assert rp.score_form == "logit"
 
 
 # ============================================================================
@@ -205,10 +214,19 @@ class TestTimeRCDScorerRun:
 
     def test_run_prob_in_range(self, train_data, test_data):
         """score_form='prob' 时输出在 [0, 1]。"""
-        scorer = _make_scorer(score_form="prob")
+        scorer = _make_scorer()
         scorer.fit(train_data)
-        scores = scorer.run(test_data)
+        scores = scorer.run(test_data, score_form="prob")
         assert (scores >= 0).all() and (scores <= 1).all()
+
+    def test_run_logit_unbounded(self, train_data, test_data):
+        """score_form='logit' 输出可超出 [0, 1]（softmax 前 logit 差）。"""
+        scorer = _make_scorer()
+        scorer.fit(train_data)
+        scores = scorer.run(test_data, score_form="logit")
+        assert np.all(np.isfinite(scores))
+        # logit 值域不应被夹紧在 [0,1]
+        assert scores.min() < 0 or scores.max() > 1
 
     def test_run_before_fit_raises(self, test_data):
         """未训练时 run 报 RuntimeError。"""
