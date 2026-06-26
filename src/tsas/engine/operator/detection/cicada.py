@@ -308,7 +308,10 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
         Raises:
             ValueError: 输入非 2D 或行数不足 ``win_size`` 时
         """
-        from cicada import CICADA  # noqa: lazy import
+        try:
+            from cicada import CICADA  # noqa: lazy import
+        except ImportError:
+            raise RuntimeError("请先安装 cicada-ad 包") from None
 
         # 校验输入维度（fit 管线不做此检查，需在 _fit_data 内部校验）
         if x.ndim != 2:
