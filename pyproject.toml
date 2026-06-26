@@ -32,17 +32,6 @@ hpo = [
 knn = [
     "scikit-learn",
 ]
-# bq-cicada 是本地包（path 见 [tool.uv.sources]），未发布到 PyPI。
-# 安装：uv sync --extra cicada
-# scikit-learn 是 bq_cicada._vendor.bq_base 的传递依赖，必须显式列出。
-cicada = [
-    "bq-cicada",
-    "scikit-learn>=1.8.0",
-]
-# bq-rcd 通过 whl 安装（不再走本地 path）。安装：uv sync --extra rcd
-rcd = [
-    "bq-rcd==0.5.2",
-]
 all = [
     "tsa-suite[hpo,knn]",
 ]
@@ -79,5 +68,3 @@ target-version = "py311"
 select = ["E", "F", "W", "I", "UP"]
 ignore = ["E501"]
 
-[tool.uv.sources]
-bq-cicada = { path = "../bq_cicada" }
