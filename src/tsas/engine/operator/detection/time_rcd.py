@@ -79,8 +79,11 @@ def _build_tester(num_features: int, config: "TimeRCDScorerConfig | TimeRCDPredi
     Returns:
         已加载默认（或指定）权重、可直接推理的 ``TimeRCDPretrainTester`` 实例。
     """
-    from bq_rcd.time_rcd import TimeRCDPretrainTester
-    from bq_rcd.time_rcd.time_rcd_config import TimeRCDConfig, TimeSeriesConfig
+    try:
+        from bq_rcd.time_rcd import TimeRCDPretrainTester
+        from bq_rcd.time_rcd.time_rcd_config import TimeRCDConfig, TimeSeriesConfig
+    except ImportError:
+        raise RuntimeError("请先安装 bq-rcd 包") from None
 
     ts_config = TimeSeriesConfig(
         patch_size=config.patch_size,
