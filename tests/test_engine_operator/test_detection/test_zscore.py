@@ -229,6 +229,7 @@ class TestZScoreScorerSaveLoad:
         np.testing.assert_allclose(loaded._std, scorer._std)
         assert loaded.is_fitted
 
+
 # ============================================================================
 # ZScoreDetector Save/Load Roundtrip 测试
 # ============================================================================
