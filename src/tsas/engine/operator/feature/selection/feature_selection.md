@@ -58,10 +58,16 @@ python -m tsas.engine.operator.cli feature_selection run --input test.csv --conf
 
 ```json
 {
-  "operator": "variance_threshold_selector",
-  "config": {
-    "input_columns": [0, 1, 2],
-    "threshold": 0.1
+  "operator": {
+    "name": "variance_threshold_selector",
+    "config": {
+      "input_columns": [
+        0,
+        1,
+        2
+      ],
+      "threshold": 0.1
+    }
   }
 }
 ```
