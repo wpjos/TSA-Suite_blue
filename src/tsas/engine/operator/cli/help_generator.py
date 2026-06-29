@@ -335,8 +335,22 @@ def _extract_role(cls: type) -> str:
         pass
 
     try:
-        from tsas.engine.operator.feature.construction.base import BaseFeatureMixin
+        from tsas.engine.operator.feature.construction.base import (
+            BaseFeatureMixin, IndependentMapFeature, IndependentWindowFeature,
+            JointMapFeature, JointWindowFeature,
+            LearnableIndependentMapFeature, LearnableIndependentWindowFeature,
+            LearnableJointMapFeature, LearnableJointWindowFeature,
+        )
         if issubclass(cls, BaseFeatureMixin):
+            # 按列关系 + 行关系细分（可训练性不重复，已有"可训练"列）
+            if issubclass(cls, (IndependentMapFeature, LearnableIndependentMapFeature)):
+                return "各列独立+逐行映射"
+            elif issubclass(cls, (IndependentWindowFeature, LearnableIndependentWindowFeature)):
+                return "各列独立+滑动窗口"
+            elif issubclass(cls, (JointMapFeature, LearnableJointMapFeature)):
+                return "多列联合+逐行映射"
+            elif issubclass(cls, (JointWindowFeature, LearnableJointWindowFeature)):
+                return "多列联合+滑动窗口"
             return "特征算子"
     except ImportError:
         pass
@@ -510,11 +524,25 @@ def _extract_type_tags(cls: type) -> list[str]:
     except ImportError:
         pass
 
-    # ---- 特征算子 ----
+    # ---- 特征算子（细分类型） ----
     try:
-        from tsas.engine.operator.feature.construction.base import BaseFeatureMixin
+        from tsas.engine.operator.feature.construction.base import (
+            BaseFeatureMixin, IndependentMapFeature, IndependentWindowFeature,
+            JointMapFeature, JointWindowFeature,
+            LearnableIndependentMapFeature, LearnableIndependentWindowFeature,
+            LearnableJointMapFeature, LearnableJointWindowFeature,
+        )
         if issubclass(cls, BaseFeatureMixin):
-            tags.append("特征算子")
+            if issubclass(cls, (IndependentMapFeature, LearnableIndependentMapFeature)):
+                tags.append("各列独立+逐行映射")
+            elif issubclass(cls, (IndependentWindowFeature, LearnableIndependentWindowFeature)):
+                tags.append("各列独立+滑动窗口")
+            elif issubclass(cls, (JointMapFeature, LearnableJointMapFeature)):
+                tags.append("多列联合+逐行映射")
+            elif issubclass(cls, (JointWindowFeature, LearnableJointWindowFeature)):
+                tags.append("多列联合+滑动窗口")
+            else:
+                tags.append("特征算子")
     except ImportError:
         pass
 

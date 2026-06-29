@@ -11,10 +11,12 @@ CLI 公共工具模块单元测试
 - ``build_help_subparser``: help 子解析器构建
 - ``handle_help``: 帮助命令处理（列表模式/详情模式/未知算子）
 - ``instantiate_operator``: 算子实例化（有config/无config/无name/未知算子）
+- ``instantiate_operator`` 组合算子: CompositeScorer/CompositeDetector 的递归实例化、嵌套组合、错误处理
 """
 
 import argparse
 
+import pandas as pd
 import pytest
 
 from tsas.engine.operator.cli.common import (
@@ -22,6 +24,7 @@ from tsas.engine.operator.cli.common import (
     build_help_subparser,
     handle_help,
     instantiate_operator,
+    auto_suffix,
 )
 from tsas.engine.operator.cli.detection import create_registry as create_detection_registry
 
@@ -320,3 +323,182 @@ class TestInstantiateOperator:
         op_spec = {'name': 'threshold_decider'}
         op_instance = instantiate_operator(op_spec, registry)
         assert op_instance.name() == 'threshold_decider'
+
+
+# ============================================================================
+# instantiate_operator 组合算子测试
+# ============================================================================
+
+class TestInstantiateCompositeOperator:
+    """测试 ``instantiate_operator`` 对组合算子（CompositeScorer / CompositeDetector）的支持
+
+    组合算子的 ``op_spec`` 中包含 ``operators`` 字段，列出子算子规格。
+    ``instantiate_operator`` 递归实例化每个子算子后传入组合算子构造函数。
+    """
+
+    @pytest.fixture
+    def registry(self):
+        """创建已完成 discover 的检测算子注册中心"""
+        return create_detection_registry()
+
+    def test_composite_scorer_with_two_scorers(self, registry):
+        """
+        目的：验证通过 ``operators`` 字段实例化 CompositeScorer
+        输入：两个 Scorer（ZScoreScorer + KNNScorer）作为子算子
+        预期：返回 CompositeScorer 实例，内部包含 2 个子算子
+        """
+        op_spec = {
+            'name': 'composite_scorer',
+            'operators': [
+                {'name': 'zscore_scorer'},
+                {'name': 'knn_scorer', 'config': {'n_neighbors': 5}},
+            ],
+        }
+        op_instance = instantiate_operator(op_spec, registry)
+        assert op_instance.name() == 'composite_scorer'
+        # 验证子算子数量
+        assert len(op_instance.operators) == 2
+        # 验证子算子类型和配置
+        from tsas.engine.operator.detection.zscore import ZScoreScorer
+        from tsas.engine.operator.detection.knn import KNNScorer
+        assert isinstance(op_instance.operators[0], ZScoreScorer)
+        assert isinstance(op_instance.operators[1], KNNScorer)
+        assert op_instance.operators[1].config.n_neighbors == 5
+
+    def test_composite_detector_with_scorer_and_decider(self, registry):
+        """
+        目的：验证通过 ``operators`` 字段实例化 CompositeDetector
+        输入：1 个 Scorer + 1 个 Decider（KNNScorer + PercentileDecider）
+        预期：返回 CompositeDetector 实例，内部包含 2 个子算子
+        """
+        op_spec = {
+            'name': 'composite_detector',
+            'operators': [
+                {'name': 'knn_scorer', 'config': {'n_neighbors': 3}},
+                {'name': 'percentile_decider', 'config': {'percentile': 90.0}},
+            ],
+        }
+        op_instance = instantiate_operator(op_spec, registry)
+        assert op_instance.name() == 'composite_detector'
+        # 验证子算子数量
+        assert len(op_instance.operators) == 2
+        # 验证子算子配置正确传递
+        assert op_instance.operators[0].config.n_neighbors == 3
+        assert op_instance.operators[1].config.percentile == 90.0
+
+    def test_nested_composite_scorer(self, registry):
+        """
+        目的：验证嵌套组合算子（CompositeScorer 内嵌 CompositeScorer）的递归实例化
+        输入：外层 CompositeScorer 包含 1 个内层 CompositeScorer + 1 个普通 Scorer
+        预期：返回外层 CompositeScorer，其子算子列表中第一个也是 CompositeScorer
+        """
+        op_spec = {
+            'name': 'composite_scorer',
+            'operators': [
+                {
+                    'name': 'composite_scorer',
+                    'operators': [
+                        {'name': 'zscore_scorer'},
+                        {'name': 'knn_scorer'},
+                    ],
+                },
+                {'name': 'zscore_scorer'},
+            ],
+        }
+        op_instance = instantiate_operator(op_spec, registry)
+        assert op_instance.name() == 'composite_scorer'
+        # 外层 2 个子算子
+        assert len(op_instance.operators) == 2
+        # 第一个子算子是内层 CompositeScorer
+        from tsas.engine.operator.detection.composite import CompositeScorer
+        assert isinstance(op_instance.operators[0], CompositeScorer)
+        # 内层 CompositeScorer 又包含 2 个子算子
+        assert len(op_instance.operators[0].operators) == 2
+
+    def test_composite_scorer_without_config(self, registry):
+        """
+        目的：验证组合算子子算子无 config 时也能正常实例化
+        输入：两个无 config 的 Scorer 作为子算子
+        预期：返回 CompositeScorer 实例，子算子使用默认配置
+        """
+        op_spec = {
+            'name': 'composite_scorer',
+            'operators': [
+                {'name': 'zscore_scorer'},
+                {'name': 'zscore_scorer'},
+            ],
+        }
+        op_instance = instantiate_operator(op_spec, registry)
+        assert op_instance.name() == 'composite_scorer'
+        assert len(op_instance.operators) == 2
+
+    def test_composite_missing_name_in_sub_operator_raises(self, registry):
+        """
+        目的：验证子算子缺少 ``name`` 字段时抛出 ValueError
+        输入：子算子规格中无 ``name``
+        预期：抛出 ValueError，错误信息包含 "缺少 'name'"
+        """
+        op_spec = {
+            'name': 'composite_scorer',
+            'operators': [
+                {'config': {'n_neighbors': 5}},  # 缺少 name
+                {'name': 'knn_scorer'},
+            ],
+        }
+        with pytest.raises(ValueError, match="缺少 'name'"):
+            instantiate_operator(op_spec, registry)
+
+
+# ============================================================================
+# deduplicate_columns 测试
+# ============================================================================
+
+class TestDeduplicateColumns:
+    """测试 ``deduplicate_columns`` 列名去重函数"""
+
+    def test_no_duplicate_columns(self):
+        """
+        目的：验证无重复列名时所有列名保持不变
+        输入：列名 ["a", "b", "c"]
+        预期：列名不变
+        """
+        df = pd.DataFrame({"a": [1], "b": [2], "c": [3]})
+        result = auto_suffix(df)
+        assert list(result.columns) == ["a", "b", "c"]
+
+    def test_single_duplicate(self):
+        """
+        目的：验证单个重复列名追加 ``_1`` 后缀
+        输入：列名 ["a", "a"]
+        预期：列名变为 ["a", "a_1"]
+        """
+        df = pd.DataFrame({"a": [1], "b": [2]})
+        result = pd.concat([df, df], axis=1)
+        result = auto_suffix(result)
+        assert list(result.columns) == ["a", "b", "a_1", "b_1"]
+
+    def test_multiple_duplicates_same_column(self):
+        """
+        目的：验证同一列名多次重复时按递增编号
+        输入：列名 ["a", "a", "a"]
+        预期：列名变为 ["a", "a_1", "a_2"]
+        """
+        df = pd.DataFrame({"a": [1]})
+        result = pd.concat([df, df, df], axis=1)
+        result = auto_suffix(result)
+        assert list(result.columns) == ["a", "a_1", "a_2"]
+
+    def test_data_preserved(self):
+        """
+        目的：验证去重仅修改列名，数据内容不变
+        输入：2x2 DataFrame 拼接为 2x4
+        预期：数据值与拼接前一致
+        """
+        df = pd.DataFrame({"x": [1.0, 2.0], "y": [3.0, 4.0]})
+        result = pd.concat([df, df], axis=1)
+        result = auto_suffix(result)
+        # 验证数据内容不变
+        assert result["x"].tolist() == [1.0, 2.0]
+        assert result["y"].tolist() == [3.0, 4.0]
+        assert result["x_1"].tolist() == [1.0, 2.0]
+        assert result["y_1"].tolist() == [3.0, 4.0]

@@ -63,24 +63,46 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _load_operator(config_path: str, registry: OperatorRegistry, load_path: str | None = None) -> BaseOperator:
-    """从配置或模型目录构造选择器。
+    """从配置文件或模型目录构造特征选择器。
+
+    配置文件采用与 detection 模块一致的嵌套 dict 格式，``operator`` 字段
+    为包含 ``name`` 和 ``config`` 的字典::
+
+        {
+            "operator": {
+                "name": "column_selector",
+                "config": {"input_columns": ["a", "c"]}
+            }
+        }
 
     Args:
         config_path (str): 配置文件路径。
         registry (OperatorRegistry): 特征选择器注册中心。
-        load_path (str | None): 已保存模型目录。
+        load_path (str | None): 已保存模型目录。指定时从模型目录
+            加载已训练的选择器，忽略配置中的实例参数。
 
     Returns:
         BaseOperator: 选择器实例。
+
+    Raises:
+        ValueError: 配置文件中缺少 ``operator`` 字段时。
     """
     config = load_config(config_path)
-    operator_name = cast(str | None, config.get('operator') or config.get('name'))
-    if not operator_name:
-        raise ValueError('配置文件必须包含 operator 字段')
-    operator_cls = registry.get(operator_name)
+    # 提取 operator 嵌套字典（与 detection 模块格式一致）
+    op_config = config.get('operator', {})
+    if not op_config:
+        raise ValueError("配置文件中缺少 'operator' 字段")
+
     if load_path:
-        return cast(type[BaseOperator], operator_cls).load(load_path)
-    return instantiate_operator({'name': operator_name, 'config': config.get('config', {})}, registry)
+        # 从配置中获取算子类名，通过注册中心查找类后调用 load
+        op_name = op_config.get('name')
+        if not op_name:
+            raise ValueError("配置文件中 operator 字段缺少 'name' 子字段")
+        op_cls = registry.get(op_name)
+        return cast(type[BaseOperator], op_cls).load(load_path)
+
+    # 委托公共函数完成核心实例化（查找类 → 构造 config → 创建实例）
+    return instantiate_operator(op_config, registry)
 
 
 def _handle_help(registry: OperatorRegistry, args: argparse.Namespace) -> None:
@@ -153,7 +175,6 @@ def main(args: list[str] | None = None) -> None:
         _handle_fit(registry, parsed)
     elif parsed.command == 'run':
         _handle_run(registry, parsed)
-
 
 __all__ = ['create_registry', 'main']
 

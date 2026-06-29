@@ -615,13 +615,13 @@ class TestExtractTypeTags:
 
     def test_feature_operator(self):
         """
-        目的：验证特征算子标签
-        输入：PCAFeature
-        预期：返回包含 "特征算子" 和 "可训练"
+        目的：验证特征算子细分类型标签
+        输入：PCAFeature（继承 LearnableJointMapFeature）
+        预期：返回包含 "多列联合+逐行映射" 和 "可训练"
         """
         from tsas.engine.operator.feature.construction.simple_feature import PCAFeature
         tags = _extract_type_tags(PCAFeature)
-        assert "特征算子" in tags
+        assert "多列联合+逐行映射" in tags
         assert "可训练" in tags
 
 
@@ -1106,10 +1106,10 @@ class TestGenerateDetailWithRealOperators:
         assert "评价指标" in result
 
     def test_feature_operator(self):
-        """预期：包含 "特征算子" 和 "可训练" """
+        """预期：包含细分类型 "多列联合+逐行映射" 和 "可训练" """
         from tsas.engine.operator.feature.construction.simple_feature import PCAFeature
         result = generate_detail(PCAFeature)
-        assert "特征算子" in result
+        assert "多列联合+逐行映射" in result
         assert "可训练" in result
 
     def test_operator_with_extra_output(self):

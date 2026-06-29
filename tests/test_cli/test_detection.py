@@ -12,6 +12,7 @@
 - fit 子命令（训练和保存）
 - 配置校验错误场景
 - 非可训练算子跳过训练
+- 可训练算子未 fit 时 run 的友好错误提示
 """
 
 import json
@@ -124,9 +125,9 @@ class TestDetectionFitAndRun:
 
     def test_run_threshold_decider(self, test_csv, tmp_path, capsys):
         """
-        目的：验证无需训练的算子（threshold_decider）直接 run
+        目的：验证无需训练的算子（threshold_decider）直接 run，默认不拼接输入列
         输入：测试数据 + threshold_decider 配置
-        预期：检测结果 CSV 包含原始列和检测结果列
+        预期：检测结果 CSV 仅包含结果列（不包含原始输入列）
         """
         config = {
             "operator": {
@@ -148,7 +149,33 @@ class TestDetectionFitAndRun:
 
         result = pd.read_csv(output_path)
         assert result.shape[0] == 20
-        assert result.shape[1] > 3
+        # 默认不拼接原始列，输出仅包含结果列
+        assert result.shape[1] == 1
+
+    def test_run_with_keep_input(self, test_csv, tmp_path, capsys):
+        """
+        目的：验证 --keep-input 选项拼接原始输入列和检测结果列
+        输入：测试数据 + threshold_decider 配置 + --keep-input flag
+        预期：输出包含原始 3 列 + 结果列
+        """
+        config = {
+            "operator": {
+                "name": "threshold_decider",
+                "input_columns": ["sensor_1"],
+                "config": {"threshold": 3.0},
+            }
+        }
+        config_path = tmp_path / "config.json"
+        with open(config_path, 'w') as f:
+            json.dump(config, f)
+
+        output_path = tmp_path / "result.csv"
+        main(['run', '--input', str(test_csv), '--output', str(output_path),
+              '--config', str(config_path), '--keep-input'])
+
+        result = pd.read_csv(output_path)
+        # 原始 3 列 + 结果列
+        assert result.shape[1] == 4
 
     def test_fit_non_learnable(self, test_csv, tmp_path, capsys):
         """
@@ -169,6 +196,68 @@ class TestDetectionFitAndRun:
         main(['fit', '--input', str(test_csv), '--config', str(config_path)])
         captured = capsys.readouterr()
         assert "不需要训练" in captured.out
+
+    def test_run_unfitted_learnable_shows_guidance(self, test_csv, tmp_path, capsys):
+        """
+        目的：验证可训练算子未 fit 时 run 输出友好的 fit→run 命令引导
+        输入：knn_scorer 配置（可训练算子），未执行 fit，直接 run
+        预期：SystemExit(1)，输出包含 "需要先训练"、"detection fit"、"--load" 等引导信息
+        """
+        config = {
+            "operator": {
+                "name": "knn_scorer",
+                "input_columns": ["sensor_1", "sensor_2", "sensor_3"],
+                "config": {"n_neighbors": 5},
+            }
+        }
+        config_path = tmp_path / "config.json"
+        with open(config_path, 'w') as f:
+            json.dump(config, f)
+
+        output_path = tmp_path / "result.csv"
+        with pytest.raises(SystemExit) as exc_info:
+            main(['run', '--input', str(test_csv), '--output', str(output_path),
+                  '--config', str(config_path)])
+
+        # sys.exit(1) 的退出码
+        assert exc_info.value.code == 1
+
+        captured = capsys.readouterr()
+        # 包含错误提示和命令引导
+        assert "需要先训练" in captured.out
+        assert "detection fit" in captured.out
+        assert "--save model_dir/" in captured.out
+        assert "--load model_dir/" in captured.out
+        assert "detection run" in captured.out
+
+    def test_run_other_runtime_error_propagates(self, test_csv, tmp_path):
+        """
+        目的：验证非 "训练尚未完成" 的 RuntimeError 正常传播，不被拦截
+        输入：threshold_decider 配置，mock 其 run 方法抛出其他 RuntimeError
+        预期：RuntimeError 正常传播，不被 SystemExit 拦截
+        """
+        from unittest.mock import patch
+
+        config = {
+            "operator": {
+                "name": "threshold_decider",
+                "input_columns": ["sensor_1"],
+                "config": {"threshold": 3.0},
+            }
+        }
+        config_path = tmp_path / "config.json"
+        with open(config_path, 'w') as f:
+            json.dump(config, f)
+
+        output_path = tmp_path / "result.csv"
+        # mock ThresholdDecider.run 抛出与训练无关的 RuntimeError
+        with patch(
+                'tsas.engine.operator.detection.threshold_decider.ThresholdDecider.run',
+                side_effect=RuntimeError("其他运行时错误"),
+        ):
+            with pytest.raises(RuntimeError, match="其他运行时错误"):
+                main(['run', '--input', str(test_csv), '--output', str(output_path),
+                      '--config', str(config_path)])
 
 
 class TestDetectionConfigErrors:

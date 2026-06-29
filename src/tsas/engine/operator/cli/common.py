@@ -39,6 +39,8 @@ CLI 公共工具模块
 
 import argparse
 
+import pandas as pd
+
 from tsas.engine.operator.base import BaseOperator
 from tsas.engine.operator.cli.help_generator import generate_detail, generate_list
 from tsas.engine.operator.cli.registry import OperatorRegistry
@@ -48,6 +50,7 @@ __all__ = [
     'build_help_subparser',
     'handle_help',
     'instantiate_operator',
+    'auto_suffix',
 ]
 
 
@@ -153,19 +156,35 @@ def instantiate_operator(
     从 ``op_spec`` 中提取算子名称和配置参数，通过注册中心查找对应的算子类，
     使用算子类的 ``_config_type`` 构造配置实例后创建算子对象。
 
-    此函数封装了三个 CLI 子模块中重复的 "查找 → 构造 config → 实例化" 逻辑。
+    此函数封装了四个 CLI 子模块中重复的 "查找 → 构造 config → 实例化" 逻辑。
+    同时支持组合算子（CompositeScorer / CompositeDetector）的递归实例化：
+    当 ``op_spec`` 中包含 ``operators`` 字段时，递归调用本函数实例化每个子算子，
+    再将子算子列表传入组合算子的构造函数。
 
-    配置字典格式::
+    配置字典格式（普通算子）::
 
         {
             "name": "knn_scorer",          # 必填，算子名称
             "config": {"n_neighbors": 5},  # 可选，实例参数字典
         }
 
+    配置字典格式（组合算子）::
+
+        {
+            "name": "composite_detector",   # 必填，组合算子名称
+            "operators": [                  # 必填，子算子规格列表
+                {"name": "knn_scorer", "config": {"n_neighbors": 5}},
+                {"name": "percentile_decider", "config": {"percentile": 95.0}},
+            ],
+            "config": {...},               # 可选，组合算子自身的实例参数
+        }
+
     Args:
         op_spec (dict):
-            单个算子的配置字典，必须包含 ``"name"`` 键，
-            可选包含 ``"config"`` 键（实例参数字典）
+            单个算子的配置字典，必须包含 ``"name"`` 键。
+            可选包含 ``"config"`` 键（实例参数字典）。
+            组合算子可额外包含 ``"operators"`` 键（子算子规格列表），
+            每个子算子规格本身也是一个符合本格式的 ``op_spec`` 字典。
         registry (OperatorRegistry):
             已执行 ``discover()`` 的算子注册中心实例
 
@@ -187,6 +206,18 @@ def instantiate_operator(
     # 提取实例参数字典（可选字段）
     cls_config = op_spec.get('config', {})
 
+    # ---- 组合算子分支：检查是否包含子算子列表 ----
+    sub_operators_spec = op_spec.get('operators')
+    if sub_operators_spec:
+        # 递归实例化每个子算子，天然支持嵌套组合
+        sub_ops = [instantiate_operator(s, registry) for s in sub_operators_spec]
+        # 组合算子可能同时拥有自身的 config（未来扩展），按需构造
+        if op_cls._config_type and cls_config:
+            config_instance = op_cls._config_type(**cls_config)
+            return op_cls(operators=sub_ops, config=config_instance)
+        return op_cls(operators=sub_ops)
+
+    # ---- 普通算子分支 ----
     # 按算子类的 _config_type 构造配置实例
     if op_cls._config_type and cls_config:
         # 有 Config 类型定义且提供了配置参数 → 构造 Pydantic 实例
@@ -197,3 +228,45 @@ def instantiate_operator(
         op_instance = op_cls()
 
     return op_instance
+
+
+def auto_suffix(df: pd.DataFrame) -> pd.DataFrame:
+    """对 DataFrame 中的重复列名自动追加后缀
+
+    遍历列名，对重复出现的列自动追加 ``_1``、``_2`` 后缀。
+    首次出现的列名保持不变，后续重复的列按出现顺序编号。
+
+    典型场景：detection CLI 的 ``--keep-input`` 选项拼接原始输入列与检测结果列时，
+    若 MultiScorerMixin 子类的输出列名与输入列名相同（如 ``xihe_gamma_scorer``），
+    会导致 ``pd.concat`` 产生重复列名。本函数用于在拼接后消除冲突。
+
+    示例::
+
+        df = pd.DataFrame({"a": [1], "b": [2]})
+        result = pd.concat([df, df], axis=1)
+        # 列名: ["a", "b", "a", "b"]
+        result = deduplicate_columns(result)
+        # 列名: ["a", "b", "a_1", "b_1"]
+
+    Args:
+        df (pd.DataFrame): 可能包含重复列名的 DataFrame
+
+    Returns:
+        pd.DataFrame: 列名唯一的 DataFrame（仅修改列名，数据不变）
+    """
+    # 记录每个列名的出现次数
+    seen: dict[str, int] = {}
+    new_cols: list[str] = []
+
+    for col in df.columns:
+        if col in seen:
+            # 已存在同名列，追加递增后缀
+            seen[col] += 1
+            new_cols.append(f"{col}_{seen[col]}")
+        else:
+            # 首次出现，保持不变
+            seen[col] = 0
+            new_cols.append(col)
+
+    df.columns = new_cols
+    return df

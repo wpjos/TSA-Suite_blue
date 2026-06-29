@@ -160,7 +160,7 @@ python -m tsas.engine.operator.cli.detection --encoding utf-8 help
 
 ### 2.2 执行特征构造 (feature_construction)
 
-特征构造模块支持一次编排多个特征算子，输出拼接后的新特征列（可选保留原始列）。
+特征构造模块支持一次编排多个特征算子，默认仅输出各算子新生成的特征列。
 
 **配置文件 (`feature.yaml` / `feature.json`) 示例：**
 
@@ -175,7 +175,6 @@ operators:
     config:
       input_columns: [ "sensor_2" ]
       degrees: [ 2, 3 ]
-keep_original: true
 ```
 
 *JSON 格式:*
@@ -204,19 +203,21 @@ keep_original: true
       }
     }
   ],
-  "keep_original": true
 }
 ```
 
 **输出说明：**
-输出的数据（如 `result.csv`）为表格格式。如果 `keep_original` 为 `true`，输出将包含所有输入数据的原始列，并在其后追加各算子新生成的特征列（如 `sensor_1_square`、`sensor_2_poly_2` 等）。如果为 `false`，则仅包含新生成的特征列及索引列。
+默认仅输出各算子新生成的特征列。通过 ``--keep-input`` 选项可在输出中同时保留原始输入列；通过 ``--auto-suffix`` 选项可在列名冲突时自动追加后缀。
 
 **执行命令：**
 
 ```bash
+# 默认仅输出新特征列
 python -m tsas.engine.operator.cli feature_construction run --input data.csv --config feature.yaml --output result.csv
-或
-python -m tsas.engine.operator.cli.feature_construction run --input data.csv --config feature.yaml --output result.csv
+# 保留原始输入列
+python -m tsas.engine.operator.cli feature_construction run --input data.csv --config feature.yaml --output result.csv --keep-input
+# 保留原始输入列并自动解决列名冲突
+python -m tsas.engine.operator.cli feature_construction run --input data.csv --config feature.yaml --output result.csv --keep-input --auto-suffix
 ```
 
 ### 2.3 执行时序异常检测 (detection)
@@ -254,12 +255,48 @@ operator:
 }
 ```
 
-**输出说明：**
-输出的数据（如 `result.csv`）将保留所有的原始输入列，并在其后追加检测结果列。
+**组合算子配置示例（composite_scorer / composite_detector）：**
 
-- 对于评分器 (`Scorer`)，追加 `anomaly_score` 列（或多列如 `sensor_1_score` 等，取决于具体算子）。
-- 对于决策器 (`Decider`)，追加 `anomaly_label` 列（0 为正常，1 为异常）。
-- 对于端到端检测器 (`Detector`)，同时追加 `anomaly_score` 和 `anomaly_label` 列。
+通过 ``operators`` 字段可以在单个配置文件中编排多算子管线，子算子按顺序串联执行。
+
+*YAML 格式:*
+
+```yaml
+operator:
+  name: "composite_detector"
+  input_columns: [ "sensor_1", "sensor_2" ]
+  operators:
+    - name: "knn_scorer"
+      config:
+        n_neighbors: 5
+    - name: "percentile_decider"
+      config:
+        percentile: 95.0
+```
+
+*JSON 格式:*
+
+```json
+{
+  "operator": {
+    "name": "composite_detector",
+    "input_columns": [ "sensor_1", "sensor_2" ],
+    "operators": [
+      { "name": "knn_scorer", "config": { "n_neighbors": 5 } },
+      { "name": "percentile_decider", "config": { "percentile": 95.0 } }
+    ]
+  }
+}
+```
+
+> **注意**：组合算子的 ``operators`` 字段中的每个子算子也是一个独立的配置字典（含 ``name`` 和可选的 ``config``），支持递归嵌套（组合算子内嵌组合算子）。
+
+**输出说明：**
+默认仅输出检测结果列。通过 ``--keep-input`` 选项可在输出中同时保留原始输入列；通过 ``--auto-suffix`` 选项可在列名冲突时自动追加后缀。
+
+- 对于评分器 (`Scorer`)，检测结果为 `anomaly_score` 列（或多列如 `sensor_1` 等，取决于具体算子）。
+- 对于决策器 (`Decider`)，检测结果为 `anomaly_label` 列（0 为正常，1 为异常）。
+- 对于端到端检测器 (`Detector`)，检测结果同时包含 `anomaly_score` 和 `anomaly_label` 列。
 
 **执行训练（fit，仅对需训练的算子）：**
 

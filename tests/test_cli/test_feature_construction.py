@@ -16,7 +16,6 @@
 
 import json
 
-import numpy as np
 import pandas as pd
 import pytest
 
@@ -42,12 +41,11 @@ def sample_csv(tmp_path):
 
 @pytest.fixture
 def run_config(tmp_path):
-    """创建 run 子命令的配置文件"""
+    """创建 run 子命令的配置文件（不含 keep_original，由 CLI 参数控制）"""
     config = {
         "operators": [
             {"name": "square_feature", "config": {"input_columns": ["col_a", "col_b"]}}
         ],
-        "keep_original": True,
     }
     path = tmp_path / "config.json"
     with open(path, 'w') as f:
@@ -100,7 +98,7 @@ class TestFeatureConstructionRun:
         """
         目的：验证 run 基本流程（加载数据→执行算子→保存结果）
         输入：输入 CSV + square_feature 配置
-        预期：输出文件包含原始列和平方后的新列
+        预期：默认不拼接原始列，输出仅包含算子产出列
         """
         output_path = tmp_path / "output.csv"
         main(['run', '--input', str(sample_csv), '--output', str(output_path),
@@ -110,21 +108,35 @@ class TestFeatureConstructionRun:
         assert "特征构造完成" in captured.out
 
         result = pd.read_csv(output_path)
-        # keep_original=True，应保留原始 3 列 + 新增列
         assert result.shape[0] == 4
-        assert result.shape[1] > 3
+        # 默认不拼接原始列，输出仅包含算子产出的列
+        assert result.shape[1] == 2
 
-    def test_run_no_keep_original(self, sample_csv, tmp_path, capsys):
+    def test_run_with_keep_input(self, sample_csv, run_config, tmp_path, capsys):
         """
-        目的：验证 keep_original=False 时不保留原始列
-        输入：keep_original 设为 false 的配置
-        预期：输出只包含算子产出的列
+        目的：验证 --keep-input 选项拼接原始输入列和算子产出列
+        输入：输入 CSV + square_feature 配置 + --keep-input flag
+        预期：输出包含原始 3 列 + 算子产出的 2 列
+        """
+        output_path = tmp_path / "output.csv"
+        main(['run', '--input', str(sample_csv), '--output', str(output_path),
+              '--config', str(run_config), '--keep-input'])
+
+        result = pd.read_csv(output_path)
+        # 原始 3 列 + square_feature 对 col_a, col_b 的产出
+        assert result.shape[1] == 5
+
+    def test_run_with_auto_suffix(self, sample_csv, tmp_path, capsys):
+        """
+        目的：验证 --auto-suffix 选项对冲突列名自动追加后缀
+        输入：两个相同算子处理同一列 + --keep-input + --auto-suffix
+        预期：列名冲突被自动解决，输出列名唯一
         """
         config = {
             "operators": [
-                {"name": "square_feature", "config": {"input_columns": ["col_a"]}}
+                {"name": "square_feature", "config": {"input_columns": ["col_a"]}},
+                {"name": "square_feature", "config": {"input_columns": ["col_a"]}},
             ],
-            "keep_original": False,
         }
         config_path = tmp_path / "config.json"
         with open(config_path, 'w') as f:
@@ -132,11 +144,11 @@ class TestFeatureConstructionRun:
 
         output_path = tmp_path / "output.csv"
         main(['run', '--input', str(sample_csv), '--output', str(output_path),
-              '--config', str(config_path)])
+              '--config', str(config_path), '--keep-input', '--auto-suffix'])
 
         result = pd.read_csv(output_path)
-        # 不保留原始列，只有算子输出
-        assert result.shape[0] == 4
+        # 验证列名唯一（无重复）
+        assert len(result.columns) == len(set(result.columns))
 
     def test_run_empty_operators_raises(self, sample_csv, tmp_path):
         """

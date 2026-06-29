@@ -30,7 +30,6 @@
         config:
           input_columns: ["col_c"]
           degrees: [2, 3]
-    keep_original: true
 """
 
 import argparse
@@ -42,7 +41,7 @@ import pandas as pd
 from tsas.engine.operator.base import BaseOperator, LearnableOperatorMixin
 from tsas.engine.operator.cli.common import (
     extract_encoding_arg, build_help_subparser,
-    handle_help, instantiate_operator,
+    handle_help, instantiate_operator, auto_suffix,
 )
 from tsas.engine.operator.cli.config_loader import load_config
 from tsas.engine.operator.cli.io import load_data, save_data, ensure_encoding
@@ -96,6 +95,10 @@ def _build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument('--output', '-o', required=True, help='输出数据文件路径')
     run_parser.add_argument('--config', '-c', required=True, help='管线配置文件路径')
     run_parser.add_argument('--load', default=None, help='加载已训练模型的目录路径')
+    run_parser.add_argument('--keep-input', action='store_true',
+                            help='将原始输入列拼接到输出结果中（默认不拼接）')
+    run_parser.add_argument('--auto-suffix', action='store_true',
+                            help='自动对冲突列名追加后缀')
 
     # ---- fit 子命令 ----
     fit_parser = subparsers.add_parser('fit', help='训练可学习特征算子')
@@ -120,7 +123,7 @@ def _handle_help(registry: OperatorRegistry, operator_name: str | None) -> None:
 
 def _instantiate_operators(
     config: dict, registry: OperatorRegistry
-) -> tuple[list[tuple[BaseOperator, dict]], bool]:
+) -> list[tuple[BaseOperator, dict]]:
     """根据配置文件实例化算子列表
 
     从配置中读取 ``operators`` 列表，委托公共函数 ``instantiate_operator``
@@ -131,7 +134,7 @@ def _instantiate_operators(
         registry (OperatorRegistry): 算子注册中心
 
     Returns:
-        tuple[list[tuple[BaseOperator, dict]], bool]: (算子实例和规格列表, keep_original 标志)，
+        list[tuple[BaseOperator, dict]]: 算子实例和规格列表，
             每个元素为 (算子实例, 算子规格字典)
 
     Raises:
@@ -141,7 +144,6 @@ def _instantiate_operators(
     if not operators_config:
         raise ValueError("配置文件中 'operators' 不能为空")
 
-    keep_original = config.get('keep_original', True)
     result = []
 
     for op_spec in operators_config:
@@ -149,7 +151,7 @@ def _instantiate_operators(
         op_instance = instantiate_operator(op_spec, registry)
         result.append((op_instance, op_spec))
 
-    return result, keep_original
+    return result
 
 
 def _handle_run(registry: OperatorRegistry, args: argparse.Namespace) -> None:
@@ -167,7 +169,7 @@ def _handle_run(registry: OperatorRegistry, args: argparse.Namespace) -> None:
     config = load_config(args.config)
 
     # 实例化算子
-    operators_and_specs, keep_original = _instantiate_operators(config, registry)
+    operators_and_specs = _instantiate_operators(config, registry)
 
     # 加载已训练模型（如指定）
     if args.load:
@@ -175,7 +177,7 @@ def _handle_run(registry: OperatorRegistry, args: argparse.Namespace) -> None:
 
     # 逐个执行算子并收集结果
     result_parts = []
-    if keep_original:
+    if args.keep_input:
         result_parts.append(df)
 
     for op_instance, op_spec in operators_and_specs:
@@ -197,6 +199,9 @@ def _handle_run(registry: OperatorRegistry, args: argparse.Namespace) -> None:
 
     # 拼接结果（按索引对齐）
     result = pd.concat(result_parts, axis=1)
+    if args.auto_suffix:
+        # 自动对冲突列名追加后缀
+        result = auto_suffix(result)
 
     # 保存
     save_data(result, args.output)
@@ -218,7 +223,7 @@ def _handle_fit(registry: OperatorRegistry, args: argparse.Namespace) -> None:
     config = load_config(args.config)
 
     # 实例化算子
-    operators_and_specs, _ = _instantiate_operators(config, registry)
+    operators_and_specs = _instantiate_operators(config, registry)
 
     # 逐个训练
     for op_instance, op_spec in operators_and_specs:

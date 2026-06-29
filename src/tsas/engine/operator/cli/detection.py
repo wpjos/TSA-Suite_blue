@@ -37,7 +37,7 @@ import pandas as pd
 from tsas.engine.operator.base import BaseOperator, LearnableOperatorMixin
 from tsas.engine.operator.cli.common import (
     extract_encoding_arg, build_help_subparser,
-    handle_help, instantiate_operator,
+    handle_help, instantiate_operator, auto_suffix,
 )
 from tsas.engine.operator.cli.config_loader import load_config
 from tsas.engine.operator.cli.io import load_data, save_data, ensure_encoding
@@ -98,6 +98,10 @@ def _build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument('--output', '-o', required=True, help='输出数据文件路径')
     run_parser.add_argument('--config', '-c', required=True, help='算子配置文件路径')
     run_parser.add_argument('--load', default=None, help='加载已训练模型的目录路径')
+    run_parser.add_argument('--keep-input', action='store_true',
+                            help='将原始输入列拼接到输出结果中（默认不拼接）')
+    run_parser.add_argument('--auto-suffix', action='store_true',
+                            help='自动对冲突列名追加后缀（需与 --keep-input 配合使用）')
 
     # ---- fit 子命令 ----
     fit_parser = subparsers.add_parser('fit', help='训练检测器')
@@ -191,7 +195,23 @@ def _handle_run(registry: OperatorRegistry, args: argparse.Namespace) -> None:
 
     # 选择输入列并执行
     op_input = _select_columns(df, input_columns)
-    output = op_instance.run(op_input)
+    try:
+        output = op_instance.run(op_input)
+    except RuntimeError as e:
+        if '训练尚未完成' in str(e):
+            # 可训练算子未 fit 时的友好提示，引导用户先执行 fit 子命令
+            print(f"错误: 算子 '{op_instance.name()}' 需要先训练才能推理。")
+            print()
+            print("请先执行训练:")
+            print(f"  python -m tsas.engine.operator.cli detection fit "
+                  f"--input {args.input} --config {args.config} --save model_dir/")
+            print()
+            print("然后执行推理（加载已训练模型）:")
+            print(f"  python -m tsas.engine.operator.cli detection run "
+                  f"--input {args.input} --config {args.config} "
+                  f"--load model_dir/ --output {args.output}")
+            sys.exit(1)
+        raise  # 其他 RuntimeError 正常传播
 
     # 处理输出
     if isinstance(output, tuple):
@@ -209,7 +229,15 @@ def _handle_run(registry: OperatorRegistry, args: argparse.Namespace) -> None:
         main_output = pd.DataFrame({'result': [main_output]})
 
     # 合并原始数据和检测结果
-    result = pd.concat([df, main_output], axis=1)
+    if args.keep_input:
+        # 拼接原始输入列和检测结果列
+        result = pd.concat([df, main_output], axis=1)
+        if args.auto_suffix:
+            # 自动对冲突列名追加后缀
+            result = auto_suffix(result)
+    else:
+        # 默认仅输出检测结果列
+        result = main_output
 
     # 保存
     save_data(result, args.output)
