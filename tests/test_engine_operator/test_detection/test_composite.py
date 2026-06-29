@@ -33,8 +33,8 @@ from tsas.engine.operator.detection.composite import (
     _extract_main_output,
 )
 from tsas.engine.operator.detection.knn import KNNScorer
+from tsas.engine.operator.detection.mean_merge_scorer import MeanMergeScorer
 from tsas.engine.operator.detection.mean_predictor import MeanPredictor
-from tsas.engine.operator.detection.mean_scorer import MeanScorer
 from tsas.engine.operator.detection.pca import PCAPredictor
 from tsas.engine.operator.detection.percentile_decider import PercentileDecider
 from tsas.engine.operator.detection.residual_scorer import ResidualScorer
@@ -365,13 +365,13 @@ class TestCompositeScorerDataFlow:
     def test_predictor_multi_scorer_flow(self, train_data, test_data):
         """
         目的：验证 Predictor + 双 Scorer 串行数据流
-        输入：MeanPredictor + ResidualScorer(BiNumeric) + MeanScorer(Numeric)
-        预期：ResidualScorer 接收 (prev_input, prev_output)，MeanScorer 接收 prev_output
+        输入：MeanPredictor + ResidualScorer(BiNumeric) + MeanMergeScorer(Numeric)
+        预期：ResidualScorer 接收 (prev_input, prev_output)，MeanMergeScorer 接收 prev_output
         """
         scorer = CompositeScorer(operators=[
             MeanPredictor(),
             ResidualScorer(metric="mse"),
-            MeanScorer(),
+            MeanMergeScorer(),
         ])
         scorer.fit(train_data)
         scores, eo = scorer.run(test_data)
