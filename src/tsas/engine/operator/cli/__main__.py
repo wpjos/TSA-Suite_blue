@@ -29,6 +29,7 @@ _MODULE_MAP = {
     'feature_construction': 'tsas.engine.operator.cli.feature_construction',
     'feature_selection': 'tsas.engine.operator.cli.feature_selection',
     'detection': 'tsas.engine.operator.cli.detection',
+    'forecasting': 'tsas.engine.operator.cli.forecasting',
     'evaluation': 'tsas.engine.operator.cli.evaluation',
 }
 
@@ -44,14 +45,15 @@ def _print_usage() -> None:
     print("  feature_construction  特征构造算子")
     print("  feature_selection     特征选择器算子")
     print("  detection             异常检测算子")
+    print("  forecasting           时序预测算子")
     print("  evaluation            评价指标算子")
     print()
     print("示例:")
     print("  python -m tsas.engine.operator.cli feature_construction help")
     print("  python -m tsas.engine.operator.cli feature_selection help")
     print("  python -m tsas.engine.operator.cli detection run --input data.csv --config det.yaml")
-    print("  python -m tsas.engine.operator.cli --encoding utf-8 evaluation run --input data.csv --config eval.json")
-
+    print("  python -m tsas.engine.operator.cli forecasting fit --input train.csv --target target --config fc.yaml")
+    print("  python -m tsas.engine.operator.cli evaluation run --input data.csv --config eval.json")
 
 def main(args: list[str] | None = None) -> None:
     """
