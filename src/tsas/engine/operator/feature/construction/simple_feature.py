@@ -95,8 +95,8 @@ class SquareFeature(IndependentMapFeature[SquareConfig]):
 class PolynomialConfig(BaseFeatureConfig):
     """多项式展开特征的 Config"""
 
-    degrees: list[int] = Field(default=[2, 3], min_length=1)
-    """多项式阶数列表，默认为 [2, 3]（即 x² 和 x³）"""
+    degrees: list[int] = Field(default=[2, 3], min_length=1, description="多项式阶数列表，默认为 [2, 3]（即 x² 和 x³）")
+    """多项式阶数列表"""
 
 
 class PolynomialFeature(IndependentMapFeature[PolynomialConfig]):
@@ -212,8 +212,8 @@ class RollingMeanFeature(IndependentWindowFeature[RollingMeanConfig]):
 class ColumnMedianConfig(BaseFeatureConfig):
     """多列取中位数特征的 Config"""
 
-    output_column: str = Field(default="")
-    """输出列名，为空时自动生成"""
+    output_column: str = Field(default=None, description="输出列名，为空时自动生成")
+    """输出列名"""
 
 
 class ColumnMedianFeature(JointMapFeature[ColumnMedianConfig]):
@@ -263,7 +263,7 @@ class ColumnMedianFeature(JointMapFeature[ColumnMedianConfig]):
 class PCAConfig(BaseFeatureConfig):
     """PCA 降维特征的 Config"""
 
-    n_components: int = Field(ge=1)
+    n_components: int = Field(ge=1, description="降维后的目标维度数")
     """降维后的目标维度数"""
 
 

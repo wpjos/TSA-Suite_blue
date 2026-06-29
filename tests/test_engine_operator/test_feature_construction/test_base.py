@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from tsas.engine.operator.feature.construction.base import (
     Alignment,
@@ -33,12 +33,6 @@ from tsas.engine.operator.feature.construction.base import (
     BaseFeatureConfig,
     WindowFeatureConfig,
     BaseFeatureMixin,
-    BaseFeature,
-    LearnableFeature,
-    IndependentFeatureMixin,
-    JointFeatureMixin,
-    MapFeatureMixin,
-    WindowFeatureMixin,
     IndependentMapFeature,
     IndependentWindowFeature,
     JointMapFeature,

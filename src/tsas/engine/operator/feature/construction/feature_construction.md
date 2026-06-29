@@ -168,7 +168,7 @@ from tsas.engine.operator.feature.construction.base import (
 
 class PCAConfig(BaseFeatureConfig):
     """PCA 降维特征的 Config"""
-    n_components: int = Field(gt=0)
+    n_components: int = Field(ge=1)
 
 
 class PCAState(BaseModel):

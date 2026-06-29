@@ -4,7 +4,7 @@
 特征构造算子基类定义模块
 
 提供特征构造算子的完整类层次结构，基于 BaseOperator / LearnableOperatorMixin 扩展，
-支持列维度（单列独立 / 多列联合）和行维度（逐行映射 / 滑动窗口）的正交组合。
+支持列维度（各列独立 / 多列联合）和行维度（逐行映射 / 滑动窗口）的正交组合。
 
 类层次结构::
 
@@ -16,18 +16,18 @@
       LearnableFeature                    ← 可训练特征构造基类
 
     第3层：模式混入（列关系 + 行关系）
-      IndependentFeatureMixin             ← 单列独立型
+      IndependentFeatureMixin             ← 各列独立型
       JointFeatureMixin                   ← 多列联合型
       MapFeatureMixin                     ← 逐行映射
       WindowFeatureMixin                  ← 滑动窗口
 
     第4层：8个编排基类（开发者直接继承）
-      IndependentMapFeature               ← 单列独立 + 逐行映射
-      IndependentWindowFeature            ← 单列独立 + 滑动窗口
+      IndependentMapFeature               ← 各列独立 + 逐行映射
+      IndependentWindowFeature            ← 各列独立 + 滑动窗口
       JointMapFeature                     ← 多列联合 + 逐行映射
       JointWindowFeature                  ← 多列联合 + 滑动窗口
-      LearnableIndependentMapFeature      ← 可训练 + 单列独立 + 逐行映射
-      LearnableIndependentWindowFeature   ← 可训练 + 单列独立 + 滑动窗口
+      LearnableIndependentMapFeature      ← 可训练 + 各列独立 + 逐行映射
+      LearnableIndependentWindowFeature   ← 可训练 + 各列独立 + 滑动窗口
       LearnableJointMapFeature            ← 可训练 + 多列联合 + 逐行映射
       LearnableJointWindowFeature         ← 可训练 + 多列联合 + 滑动窗口
 
@@ -170,7 +170,7 @@ class WindowFeatureConfig(BaseFeatureConfig):
     """
 
     window_size: int = Field(
-        gt=0,
+        ge=1,
         description="滑动窗口大小，必须为正整数；决定每次 compute 调用接收的数据行数",
     )
 
@@ -506,7 +506,7 @@ class LearnableFeature(BaseFeatureMixin[FS], LearnableOperatorMixin[NumericData,
 # ============================================================================
 
 class IndependentFeatureMixin(BaseFeatureMixin[FS], metaclass=ABCMeta):
-    """单列独立型特征混入
+    """各列独立型特征混入
 
     表示输出中每列只与输入中的一列相关的语义约定。所有 ``input_columns`` 对应的列
     作为一个完整的 ndarray 传入 ``compute``，**不会按列拆分逐个调用**。
@@ -887,10 +887,10 @@ class WindowFeatureMixin(BaseFeatureMixin[FS], metaclass=ABCMeta):
 # ---- 不可训练 × 4 ----
 
 class IndependentMapFeature(IndependentFeatureMixin, MapFeatureMixin, BaseFeature[C], Generic[C]):
-    """单列独立 + 逐行映射特征
+    """各列独立 + 逐行映射特征
 
     组合 ``IndependentFeatureMixin`` 与 ``MapFeatureMixin``，对 ``input_columns`` 中的每列
-    独立调用 ``compute``，传入单列 NumPy 数组（全部行），输出行数与输入行数一致。
+    独立调用 ``compute``，传入 NumPy 数组（全部行），输出行数与输入行数一致。
 
     子类需实现:
         - ``compute``: 定义逐行映射的特征计算逻辑。
@@ -903,10 +903,10 @@ class IndependentMapFeature(IndependentFeatureMixin, MapFeatureMixin, BaseFeatur
 
 
 class IndependentWindowFeature(IndependentFeatureMixin, WindowFeatureMixin, BaseFeature[C], Generic[C]):
-    """单列独立 + 滑动窗口特征
+    """各列独立 + 滑动窗口特征
 
     组合 ``IndependentFeatureMixin`` 与 ``WindowFeatureMixin``，对 ``input_columns`` 中的每列
-    独立应用滑动窗口，逐窗口调用 ``compute``，传入单列 NumPy 数组（窗口大小行数），
+    独立应用滑动窗口，逐窗口调用 ``compute``，传入 NumPy 数组（窗口大小行数），
     ``compute`` 返回单个数值（float）。
 
     子类需实现:
@@ -954,11 +954,11 @@ class JointWindowFeature(JointFeatureMixin, WindowFeatureMixin, BaseFeature[C], 
 # ---- 可训练 × 4 ----
 
 class LearnableIndependentMapFeature(IndependentFeatureMixin, MapFeatureMixin, LearnableFeature[C, FS], Generic[C, FS]):
-    """可训练 + 单列独立 + 逐行映射特征
+    """可训练 + 各列独立 + 逐行映射特征
 
     组合 ``IndependentFeatureMixin``、``MapFeatureMixin`` 与 ``LearnableFeature``。
     ``_fit`` 接收完整 DataFrame，开发者自行处理列选取和状态学习；
-    ``compute`` 对每列独立调用，传入单列 NumPy 数组（全部行），
+    ``compute`` 对每列独立调用，传入 NumPy 数组（全部行），
     通过 ``state`` 参数接收训练后的状态。
 
     子类需实现:
@@ -975,7 +975,7 @@ class LearnableIndependentMapFeature(IndependentFeatureMixin, MapFeatureMixin, L
 
 class LearnableIndependentWindowFeature(IndependentFeatureMixin, WindowFeatureMixin, LearnableFeature[C, FS],
                                         Generic[C, FS]):
-    """可训练 + 单列独立 + 滑动窗口特征
+    """可训练 + 各列独立 + 滑动窗口特征
 
     组合 ``IndependentFeatureMixin``、``WindowFeatureMixin`` 与 ``LearnableFeature``。
     ``_fit`` 接收完整 DataFrame，开发者自行处理列选取和状态学习；
