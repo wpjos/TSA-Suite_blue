@@ -62,13 +62,13 @@ from pydantic import BaseModel, Field, ConfigDict
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader
 from tsas.basic.dataset.sliding_window import DataFrameSlidingWindowDataset
-from tsas.engine.util.pt_helper import get_torch_device
 
 from tsas.engine.operator.base import (
     BatchRunNumericOperatorMixin,
     NumericOperator,
 )
 from tsas.engine.operator.detection.base import MultiScorerMixin
+from tsas.engine.util.pt_helper import get_torch_device
 
 __all__ = [
     'XiHeScoreMerge',
@@ -250,8 +250,8 @@ class XiHeGammaScorer(
         """模型路径"""
         self._value_scaler: StandardScaler | None = None
         """当前推理使用的标准化器（运行期间临时状态）"""
-        # 自动加载模型
-        if self.config and self.config.model_path:
+        # 自动加载模型（model_path 为 None 时使用默认预训练模型）
+        if self.config:
             self.load_model(self.config.model_path)
 
     def load_model(self, path: str | None = None) -> None:

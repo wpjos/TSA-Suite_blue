@@ -1,3 +1,5 @@
 # -*- coding: utf-8 -*-
 
-"""tsas.engine.util 工具包。"""
+"""
+引擎基础工具包
+"""
