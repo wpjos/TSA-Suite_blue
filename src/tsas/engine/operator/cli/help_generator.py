@@ -369,6 +369,13 @@ def _extract_role(cls: type) -> str:
     except ImportError:
         pass
 
+    try:
+        from tsas.engine.operator.forecasting.base import BaseForecaster
+        if issubclass(cls, BaseForecaster):
+            return "forecasting"
+    except ImportError:
+        pass
+
     return "未知"
 
 
