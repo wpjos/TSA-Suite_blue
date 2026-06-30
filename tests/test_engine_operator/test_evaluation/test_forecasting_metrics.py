@@ -511,7 +511,6 @@ class TestForecastingMetricsDTW:
         输出: ForecastingMetricResult
         预期: dtw == mae
         """
-        import tsas.engine.operator.evaluation.forecasting_metrics as fm
 
         original_import = __builtins__.get("__import__") or __builtins__["__import__"]
 

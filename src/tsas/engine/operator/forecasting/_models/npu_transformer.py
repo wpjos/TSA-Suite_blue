@@ -82,9 +82,9 @@ class NPUMultiheadAttention(nn.Module):
         attn_weights = F.softmax(attn, dim=-1)
         attn_weights = self.attn_dropout(attn_weights)
 
-        out = torch.matmul(attn_weights, V)           # [B, H, T, d_head]
-        out = out.transpose(1, 2).contiguous()        # [B, T, H, d_head]
-        out = out.view(B, -1, self.d_model)           # [B, T, D]
+        out = torch.matmul(attn_weights, V)  # [B, H, T, d_head]
+        out = out.transpose(1, 2).contiguous()  # [B, T, H, d_head]
+        out = out.view(B, -1, self.d_model)  # [B, T, D]
 
         output = self.o_proj(out)
         return output, attn_weights
@@ -155,8 +155,8 @@ class NPUMoETransformerEncoderLayer(nn.Module):
     def forward(self, src, src_mask=None, src_key_padding_mask=None):
         src2 = self.norm1(src)
         src2, _ = self.self_attn(src2, src2, src2,
-                                  attn_mask=src_mask,
-                                  key_padding_mask=src_key_padding_mask)
+                                 attn_mask=src_mask,
+                                 key_padding_mask=src_key_padding_mask)
         src = src + self.dropout1(src2)
 
         src2 = self.norm2(src)

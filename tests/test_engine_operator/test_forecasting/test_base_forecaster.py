@@ -14,7 +14,6 @@ BaseForecaster 时序预测基类单元测试
 """
 
 import numpy as np
-import pandas as pd
 import pytest
 from pandas import DataFrame
 
@@ -225,6 +224,7 @@ class TestBaseForecasterAbstract:
 
     def test_missing_abstract_methods(self):
         """目的：验证未实现抽象方法的子类不能实例化"""
+
         class IncompleteForecaster(BaseForecaster[ForecastExtraOutput, None, None, None]):
             @classmethod
             def name(cls):

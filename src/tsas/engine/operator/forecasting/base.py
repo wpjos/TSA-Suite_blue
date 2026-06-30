@@ -15,7 +15,7 @@
 """
 
 from abc import ABCMeta, abstractmethod
-from typing import Generic, TypeVar
+from typing import Generic
 
 import numpy as np
 import pandas as pd
@@ -27,10 +27,8 @@ from tsas.engine.operator.base import (
     DataFrameMeta,
     EO,
     FP,
-    I,
     LearnableOperatorMixin,
     NumericData,
-    O,
     RP,
 )
 

@@ -24,10 +24,10 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
-import lightgbm as lgb
 from loguru import logger
 from pydantic import BaseModel, Field
 
+import lightgbm as lgb
 from tsas.engine.operator.forecasting.base import BaseForecaster, ForecastExtraOutput
 
 __all__ = [
@@ -68,9 +68,9 @@ class LightGBMForecasterConfig(BaseModel):
 
 
 class LightGBMForecaster(BaseForecaster[ForecastExtraOutput,
-                                        LightGBMForecasterConfig,
-                                        None,
-                                        None]):
+LightGBMForecasterConfig,
+None,
+None]):
     """LightGBM 时序预测算子。
 
     采用 Direct 策略：为每个预测步长（以及每个目标维度）训练独立的
@@ -181,7 +181,8 @@ class LightGBMForecaster(BaseForecaster[ForecastExtraOutput,
             return x.reshape(x.shape[0], -1)
         raise ValueError(f"窗口维度必须是 2-D 或 3-D，当前为 {x.ndim}")
 
-    def _split_train_val(self, X: np.ndarray, Y: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
+    def _split_train_val(self, X: np.ndarray, Y: np.ndarray) -> tuple[
+        np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
         """按时间顺序划分训练集和验证集。"""
         cfg = self.config
         n_total = len(X)

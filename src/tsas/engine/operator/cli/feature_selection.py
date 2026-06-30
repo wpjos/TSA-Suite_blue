@@ -19,6 +19,8 @@ from tsas.engine.operator.cli.config_loader import load_config
 from tsas.engine.operator.cli.io import ensure_encoding, load_data, save_data, save_json
 from tsas.engine.operator.cli.registry import OperatorRegistry
 
+__all__ = ['create_registry', 'main']
+
 
 def create_registry() -> OperatorRegistry:
     """创建特征选择器注册中心。
@@ -176,7 +178,6 @@ def main(args: list[str] | None = None) -> None:
     elif parsed.command == 'run':
         _handle_run(registry, parsed)
 
-__all__ = ['create_registry', 'main']
 
 if __name__ == '__main__':
     main()

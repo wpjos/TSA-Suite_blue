@@ -10,7 +10,6 @@ Adapted from the HBHD industrial forecasting project.
 """
 
 import math
-from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -34,18 +33,18 @@ class KANLinear(nn.Module):
     """Kolmogorov-Arnold Network linear layer."""
 
     def __init__(
-        self,
-        in_features,
-        out_features,
-        grid_size=5,
-        spline_order=3,
-        scale_noise=0.1,
-        scale_base=1.0,
-        scale_spline=1.0,
-        enable_standalone_scale_spline=True,
-        base_activation=nn.SiLU,
-        grid_eps=0.02,
-        grid_range=(-1, 1),
+            self,
+            in_features,
+            out_features,
+            grid_size=5,
+            spline_order=3,
+            scale_noise=0.1,
+            scale_base=1.0,
+            scale_spline=1.0,
+            enable_standalone_scale_spline=True,
+            base_activation=nn.SiLU,
+            grid_eps=0.02,
+            grid_range=(-1, 1),
     ):
         super().__init__()
         self.in_features = in_features
@@ -56,8 +55,8 @@ class KANLinear(nn.Module):
         h = (grid_range[1] - grid_range[0]) / grid_size
         grid = (
             (
-                torch.arange(-spline_order, grid_size + spline_order + 1) * h
-                + grid_range[0]
+                    torch.arange(-spline_order, grid_size + spline_order + 1) * h
+                    + grid_range[0]
             )
             .expand(in_features, -1)
             .contiguous()
@@ -84,17 +83,17 @@ class KANLinear(nn.Module):
         nn.init.kaiming_uniform_(self.base_weight, a=math.sqrt(5) * self.scale_base)
         with torch.no_grad():
             noise = (
-                (
-                    torch.rand(self.grid_size + 1, self.in_features, self.out_features)
-                    - 1 / 2
-                )
-                * self.scale_noise
-                / self.grid_size
+                    (
+                            torch.rand(self.grid_size + 1, self.in_features, self.out_features)
+                            - 1 / 2
+                    )
+                    * self.scale_noise
+                    / self.grid_size
             )
             self.spline_weight.data.copy_(
                 (self.scale_spline if not self.enable_standalone_scale_spline else 1.0)
                 * self.curve2coeff(
-                    self.grid.T[self.spline_order : -self.spline_order],
+                    self.grid.T[self.spline_order: -self.spline_order],
                     noise,
                 )
             )
@@ -108,14 +107,14 @@ class KANLinear(nn.Module):
         bases = ((x >= grid[:, :-1]) & (x < grid[:, 1:])).to(x.dtype)
         for k in range(1, self.spline_order + 1):
             bases = (
-                (x - grid[:, : -(k + 1)])
-                / (grid[:, k:-1] - grid[:, : -(k + 1)])
-                * bases[:, :, :-1]
-            ) + (
-                (grid[:, k + 1 :] - x)
-                / (grid[:, k + 1 :] - grid[:, 1:(-k)])
-                * bases[:, :, 1:]
-            )
+                            (x - grid[:, : -(k + 1)])
+                            / (grid[:, k:-1] - grid[:, : -(k + 1)])
+                            * bases[:, :, :-1]
+                    ) + (
+                            (grid[:, k + 1:] - x)
+                            / (grid[:, k + 1:] - grid[:, 1:(-k)])
+                            * bases[:, :, 1:]
+                    )
         assert bases.size() == (x.size(0), self.in_features, self.grid_size + self.spline_order)
         return bases.contiguous()
 

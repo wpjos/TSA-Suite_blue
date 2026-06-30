@@ -10,13 +10,12 @@ MSE、RMSE、MAE、MAPE、SMAPE、MASE、DTW、R²。
 内部统一拉平后计算（保持与 HBHD_predict_v1.5 的 ``calculate_metrics`` 一致）。
 """
 
+import warnings
 from typing import Optional, Dict, Tuple
 
 import numpy as np
 import pandas as pd
-import warnings
 from pydantic import BaseModel, ConfigDict, Field
-from sklearn.metrics import mean_squared_error
 
 from tsas.engine.operator.evaluation.base import BaseMetricConfig, BaseMetricOperator
 

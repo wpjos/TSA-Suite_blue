@@ -69,7 +69,8 @@ class XGBoostMIMOForecasterConfig(BaseModel):
     reg_lambda: float = Field(default=0.1, ge=0.0, le=10.0, description="L2 正则化")
 
     # ---- 训练 / 调参 ----
-    skip_tune: bool = Field(default=True, description="是否跳过内部网格调参（MIMO 当前无内部调参，保留此字段用于 API 一致性）")
+    skip_tune: bool = Field(default=True,
+                            description="是否跳过内部网格调参（MIMO 当前无内部调参，保留此字段用于 API 一致性）")
     train_ratio: float = Field(default=0.8, ge=0.1, le=0.95, description="训练集占比")
     val_ratio: float = Field(default=0.1, ge=0.0, le=0.45, description="验证集占剩余数据比例")
 
@@ -82,9 +83,9 @@ class XGBoostMIMOForecasterConfig(BaseModel):
 
 
 class XGBoostMIMOForecaster(BaseForecaster[ForecastExtraOutput,
-                                           XGBoostMIMOForecasterConfig,
-                                           None,
-                                           None]):
+XGBoostMIMOForecasterConfig,
+None,
+None]):
     """XGBoost MIMO 时序预测算子。
 
     采用 MIMO 策略：每个目标维度使用一个 XGBoost booster，以“窗口特征 + 步长索引”
@@ -223,7 +224,8 @@ class XGBoostMIMOForecaster(BaseForecaster[ForecastExtraOutput,
 
         return features
 
-    def _split_train_val(self, X: np.ndarray, Y: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
+    def _split_train_val(self, X: np.ndarray, Y: np.ndarray) -> tuple[
+        np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
         """按时间顺序划分训练集和验证集。"""
         cfg = self.config
         n_total = len(X)

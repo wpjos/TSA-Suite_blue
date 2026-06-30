@@ -15,7 +15,6 @@ iTransformer 工业时序预测算子单元测试
 """
 
 import numpy as np
-import pandas as pd
 import pytest
 from pandas import DataFrame
 

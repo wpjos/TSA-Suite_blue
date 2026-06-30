@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Literal, Optional
 
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
 from loguru import logger
@@ -27,10 +26,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, Dataset
 
-from tsas.engine.operator.forecasting.base import BaseForecaster, ForecastExtraOutput
 from tsas.engine.operator.forecasting._models.itransformer_kan_res import (
     ITransformerRegressor,
 )
+from tsas.engine.operator.forecasting.base import BaseForecaster, ForecastExtraOutput
 from tsas.engine.util.pt_helper import _try_import_npu
 
 __all__ = [
@@ -52,7 +51,7 @@ class ITransformerForecasterConfig(BaseModel):
     nhead: int = Field(default=4, ge=1, le=16, description="注意力头数")
     num_layers: int = Field(default=2, ge=1, le=12, description="Encoder 层数")
     dim_feedforward: Optional[int] = Field(default=None, ge=16, le=4096,
-                                        description="FFN 隐藏层维度，None 时取 2*d_model")
+                                           description="FFN 隐藏层维度，None 时取 2*d_model")
     dropout: float = Field(default=0.2, ge=0.0, le=0.8, description="Dropout 比率")
     step_cond_head: bool = Field(default=False, description="是否使用步长条件预测头")
     lag_aware: bool = Field(default=True, description="是否启用 Lag-Aware Refiner")
@@ -111,9 +110,9 @@ class _TimeSeriesDataset(Dataset):
 
 
 class ITransformerForecaster(BaseForecaster[ForecastExtraOutput,
-                                           ITransformerForecasterConfig,
-                                           None,
-                                           None]):
+ITransformerForecasterConfig,
+None,
+None]):
     """iTransformer 工业时序预测算子。
 
     训练阶段学习标准化残差；推理阶段输出物理量预测。
