@@ -51,7 +51,7 @@ from tsas.engine.operator.base import (
     NumericOperator,
     UnsupervisedNumericOperatorMixin,
 )
-from tsas.engine.operator.detection.base import BasePredictor, SingleScorerMixin
+from tsas.engine.operator.detection.base import BasePredictorMixin, SingleScorerMixin
 
 __all__ = [
     "TimeRCDScorerConfig",
@@ -177,12 +177,21 @@ class TimeRCDScorer(
     def name(cls) -> str:
         return "time_rcd_scorer"
 
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        """返回算子版本号。
+
+        Returns:
+            tuple[int, ...]: 版本号三元组 ``(1, 0, 0)``
+        """
+        return (1, 0, 0)
+
     def __init__(
-        self,
-        *,
-        oid: str | None = None,
-        config: TimeRCDScorerConfig | None = None,
-        **kwargs,
+            self,
+            *,
+            oid: str | None = None,
+            config: TimeRCDScorerConfig | None = None,
+            **kwargs,
     ) -> None:
         """初始化 Time-RCD 评分器。
 
@@ -250,10 +259,10 @@ class TimeRCDScorer(
     # ------------------------------------------------------------------
 
     def _run_data(
-        self,
-        x: np.ndarray,
-        params: TimeRCDScorerRunParams | None,
-        idx: pd.Index | None = None,
+            self,
+            x: np.ndarray,
+            params: TimeRCDScorerRunParams | None,
+            idx: pd.Index | None = None,
     ) -> np.ndarray:
         """对输入做零样本异常分数推理。
 
@@ -375,7 +384,8 @@ class TimeRCDPredictorRunParams(BaseModel):
 
 class TimeRCDPredictor(
     UnsupervisedNumericOperatorMixin[None],
-    BasePredictor[None, TimeRCDPredictorConfig, TimeRCDPredictorRunParams],
+    BasePredictorMixin[None, TimeRCDPredictorConfig, TimeRCDPredictorRunParams],
+    NumericOperator[None, TimeRCDPredictorConfig, TimeRCDPredictorRunParams],
 ):
     """Time-RCD 零样本信号重建预测器
 
@@ -387,7 +397,7 @@ class TimeRCDPredictor(
       重建序列。``denormalize`` 通过 RunParams 切换，默认 ``True``。
 
     输出形状约定:
-        - 输入 (N, C) → 输出 (N, C)，沿用输入列名（``BasePredictor`` 行为）。
+        - 输入 (N, C) → 输出 (N, C)，沿用输入列名（``BasePredictorMixin`` 行为）。
         - bq_rcd 的 ``zero_shot_reconstruct`` 在 ``num_channels == 1`` 时会
           ravel 到 1D；这里统一 reshape 回 (N, 1) 以满足 NumericOperator 输出
           为 2D 的契约。
@@ -404,12 +414,21 @@ class TimeRCDPredictor(
     def name(cls) -> str:
         return "time_rcd_predictor"
 
+    @classmethod
+    def version(cls) -> tuple[int, ...]:
+        """返回算子版本号。
+
+        Returns:
+            tuple[int, ...]: 版本号三元组 ``(1, 0, 0)``
+        """
+        return (1, 0, 0)
+
     def __init__(
-        self,
-        *,
-        oid: str | None = None,
-        config: TimeRCDPredictorConfig | None = None,
-        **kwargs,
+            self,
+            *,
+            oid: str | None = None,
+            config: TimeRCDPredictorConfig | None = None,
+            **kwargs,
     ) -> None:
         super().__init__(oid=oid, config=config, **kwargs)
         self._tester = None
@@ -460,10 +479,10 @@ class TimeRCDPredictor(
     # ------------------------------------------------------------------
 
     def _run_data(
-        self,
-        x: np.ndarray,
-        params: TimeRCDPredictorRunParams | None,
-        idx: pd.Index | None = None,
+            self,
+            x: np.ndarray,
+            params: TimeRCDPredictorRunParams | None,
+            idx: pd.Index | None = None,
     ) -> np.ndarray:
         denormalize = self._resolve_param(params, "denormalize", default=True)
         x_float32 = x.astype(np.float32) if x.dtype != np.float32 else x
