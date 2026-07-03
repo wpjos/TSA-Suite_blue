@@ -547,6 +547,7 @@ class BinaryClassificationCurve(
                         "mcc": float,          # Matthews 相关系数
                     }
         """
+
         # ========== 安全除法辅助函数 ==========
         # 当分母为零时返回 default_for_zero，避免除零异常。
         # 这是二分类指标计算中的常见模式，因为某些极端阈值下

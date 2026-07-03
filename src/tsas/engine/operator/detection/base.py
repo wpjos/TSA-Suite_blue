@@ -32,13 +32,7 @@ from typing import Generic
 
 import numpy as np
 
-from tsas.engine.operator.base import (
-    C,
-    RP,
-    EO,
-    DataFrameMeta,
-    NumericOperator,
-)
+from tsas.engine.operator.base import (C, DataFrameMeta, EO, NumericOperator, RP)
 
 __all__ = [
     'BasePredictorMixin',

@@ -20,11 +20,7 @@
 import numpy as np
 import pytest
 
-from tsas.engine.operator.evaluation.binary_curve import (
-    BinaryClassificationCurveResult,
-    BinaryClassificationCurveConfig,
-    BinaryClassificationCurve,
-)
+from tsas.engine.operator.evaluation.binary_curve import (BinaryClassificationCurve, BinaryClassificationCurveResult)
 
 
 # ============================================================================

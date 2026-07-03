@@ -19,18 +19,14 @@
 
 import os
 import tempfile
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from tsas.engine.operator.detection.xihe import (
-    XiHeGammaScorer,
-    XiHeGammaScorerConfig,
-    XiHeGammaScorerExtraOutput,
-    _XIHE_WINDOW_SIZE,
-)
+from tsas.engine.operator.detection.xihe import (_XIHE_WINDOW_SIZE, XiHeGammaScorer, XiHeGammaScorerConfig,
+                                                 XiHeGammaScorerExtraOutput)
 
 
 # ============================================================================
@@ -132,8 +128,8 @@ def _mock_tspredictor(request):
     # 动态 mock，自动适配变量数
     mock_pred = _make_dynamic_mock_predictor()
     with patch(
-            "pangu_xihe_gamma.infer_service.pangu_ts_predictor.TSPredictor",
-            return_value=mock_pred,
+        "pangu_xihe_gamma.infer_service.pangu_ts_predictor.TSPredictor",
+        return_value=mock_pred,
     ):
         yield mock_pred
 
@@ -239,8 +235,8 @@ class TestXiHeGammaScorerModelLoading:
         scorer = XiHeGammaScorer()
         mock_pred = _make_mock_predictor(["var_0"])
         with patch(
-                "pangu_xihe_gamma.infer_service.pangu_ts_predictor.TSPredictor",
-                return_value=mock_pred,
+            "pangu_xihe_gamma.infer_service.pangu_ts_predictor.TSPredictor",
+            return_value=mock_pred,
         ) as mock_cls:
             scorer.load_model("/some/path")
             mock_cls.assert_called_once()
@@ -253,8 +249,8 @@ class TestXiHeGammaScorerModelLoading:
         mock_pred = _make_mock_predictor(["var_0"])
         mock_pred.checkpoint_path = "/default/path"
         with patch(
-                "pangu_xihe_gamma.infer_service.pangu_ts_predictor.TSPredictor",
-                return_value=mock_pred,
+            "pangu_xihe_gamma.infer_service.pangu_ts_predictor.TSPredictor",
+            return_value=mock_pred,
         ):
             scorer.load_model()
         assert scorer._model is not None
@@ -268,8 +264,8 @@ class TestXiHeGammaScorerModelLoading:
         """
         mock_pred = _make_mock_predictor(["var_0"])
         with patch(
-                "pangu_xihe_gamma.infer_service.pangu_ts_predictor.TSPredictor",
-                return_value=mock_pred,
+            "pangu_xihe_gamma.infer_service.pangu_ts_predictor.TSPredictor",
+            return_value=mock_pred,
         ) as mock_cls:
             config = XiHeGammaScorerConfig(model_path="/auto/path")
             scorer = XiHeGammaScorer(config=config)

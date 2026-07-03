@@ -36,13 +36,8 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel
 
-from tsas.engine.operator.cli.help_generator import (
-    _format_type_full,
-    _simplify_output_type,
-    _split_input_types,
-    _parse_variables,
-    _is_basemodel_subtype,
-)
+from tsas.engine.operator.cli.help_generator import (_format_type_full, _is_basemodel_subtype, _parse_variables,
+                                                     _simplify_output_type, _split_input_types)
 
 
 # ============================================================================

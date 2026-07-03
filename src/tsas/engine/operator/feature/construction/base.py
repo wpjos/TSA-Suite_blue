@@ -50,16 +50,15 @@
             return self._make_output_column_name(input_col, "square")
 """
 
-from abc import abstractmethod, ABC, ABCMeta
+from abc import ABC, ABCMeta, abstractmethod
 from enum import StrEnum
-from typing import TypeVar, Generic, Union, Self
+from typing import Generic, Self, TypeVar, Union
 
 import numpy as np
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
 
-from tsas.engine.operator.base import LearnableOperatorMixin, C, NumericOperator, NumericData, \
-    DataFrameMeta
+from tsas.engine.operator.base import C, DataFrameMeta, LearnableOperatorMixin, NumericData, NumericOperator
 
 __all__ = [
     # 枚举

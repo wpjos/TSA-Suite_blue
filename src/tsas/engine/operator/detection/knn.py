@@ -36,10 +36,7 @@ import pandas as pd
 from pydantic import BaseModel, Field
 
 from tsas.engine.operator.base import NumericOperator, UnsupervisedNumericOperatorMixin
-from tsas.engine.operator.detection.base import (
-    SingleScorerMixin,
-    BaseDeciderMixin,
-)
+from tsas.engine.operator.detection.base import (BaseDeciderMixin, SingleScorerMixin)
 from tsas.engine.operator.detection.percentile_decider import (
     PercentileDecider,
     PercentileDeciderConfig,
@@ -219,7 +216,7 @@ class KNNScorer(SingleScorerMixin[None],
         self._train_data = x
 
     def _run_data(self, x: np.ndarray, params: None, idx: pd.Index | None = None) -> (
-            np.ndarray | tuple[np.ndarray, KNNScorerExtraOutput]):
+        np.ndarray | tuple[np.ndarray, KNNScorerExtraOutput]):
         """
         计算 KNN 异常分数
 

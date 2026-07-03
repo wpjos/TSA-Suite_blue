@@ -17,10 +17,7 @@ import numpy as np
 import pytest
 from pandas import DataFrame
 
-from tsas.engine.operator.detection.zscore import (
-    ZScoreScorer,
-    ZScoreDetector,
-)
+from tsas.engine.operator.detection.zscore import (ZScoreDetector, ZScoreScorer)
 
 
 # ============================================================================
@@ -228,6 +225,7 @@ class TestZScoreScorerSaveLoad:
         np.testing.assert_allclose(loaded._mean, scorer._mean)
         np.testing.assert_allclose(loaded._std, scorer._std)
         assert loaded.is_fitted
+
 
 # ============================================================================
 # ZScoreDetector Save/Load Roundtrip 测试

@@ -44,15 +44,12 @@ import argparse
 import sys
 
 import numpy as np
-import pandas as pd
 from pydantic import BaseModel
 
-from tsas.engine.operator.cli.common import (
-    extract_encoding_arg, build_help_subparser,
-    handle_help, instantiate_operator,
-)
+from tsas.engine.operator.cli.common import (build_help_subparser, extract_encoding_arg, handle_help,
+                                             instantiate_operator)
 from tsas.engine.operator.cli.config_loader import load_config
-from tsas.engine.operator.cli.io import load_data, save_json, ensure_encoding
+from tsas.engine.operator.cli.io import ensure_encoding, load_data, save_json
 from tsas.engine.operator.cli.registry import OperatorRegistry
 
 __all__ = [

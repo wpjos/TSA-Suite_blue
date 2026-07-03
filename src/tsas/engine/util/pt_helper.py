@@ -32,13 +32,13 @@ logger = logging.getLogger(__name__)
 
 
 def get_torch_device(
-        *,
-        device: str | dict | torch.device | None = None,
-        device_name: str | None = None,
-        gpu: str | int | None = None,
-        xpu: str | int | None = None,
-        npu: str | int | None = None,
-        raise_error: bool = True
+    *,
+    device: str | dict | torch.device | None = None,
+    device_name: str | None = None,
+    gpu: str | int | None = None,
+    xpu: str | int | None = None,
+    npu: str | int | None = None,
+    raise_error: bool = True
 ) -> torch.device:
     """
     获取PyTorch计算设备对象(torch.device)。

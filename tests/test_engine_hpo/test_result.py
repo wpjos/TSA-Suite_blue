@@ -16,7 +16,6 @@ HPO 优化结果数据模型单元测试
 - HPOResult.__repr__ 输出格式
 """
 
-import numpy as np
 import pytest
 
 from tsas.engine.hpo.result import HPOResult, TrialInfo

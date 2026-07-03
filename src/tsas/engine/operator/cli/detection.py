@@ -35,12 +35,10 @@ import numpy as np
 import pandas as pd
 
 from tsas.engine.operator.base import BaseOperator, LearnableOperatorMixin
-from tsas.engine.operator.cli.common import (
-    extract_encoding_arg, build_help_subparser,
-    handle_help, instantiate_operator, auto_suffix,
-)
+from tsas.engine.operator.cli.common import (auto_suffix, build_help_subparser, extract_encoding_arg, handle_help,
+                                             instantiate_operator)
 from tsas.engine.operator.cli.config_loader import load_config
-from tsas.engine.operator.cli.io import load_data, save_data, ensure_encoding
+from tsas.engine.operator.cli.io import ensure_encoding, load_data, save_data
 from tsas.engine.operator.cli.registry import OperatorRegistry
 
 __all__ = [

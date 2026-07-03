@@ -217,8 +217,8 @@ python -m tsas.engine.operator.cli evaluation run \
 ```yaml
 operators:
   - name: "forecasting_metrics"
-    truth_columns: ["true"]
-    predict_columns: ["pred"]
+    truth_columns: [ "true" ]
+    predict_columns: [ "pred" ]
     config:
       naive_error: 1.0
 ```

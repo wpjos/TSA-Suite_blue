@@ -19,7 +19,7 @@ import json
 import pandas as pd
 import pytest
 
-from tsas.engine.operator.cli.feature_construction import main, create_registry
+from tsas.engine.operator.cli.feature_construction import create_registry, main
 
 
 # ============================================================================

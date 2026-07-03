@@ -109,7 +109,7 @@ class TestOperatorVersions:
 
         # 统一断言，一次输出全部格式问题
         assert not errors, (
-                f"发现 {len(errors)} 个算子版本格式问题:\n" + "\n".join(errors)
+            f"发现 {len(errors)} 个算子版本格式问题:\n" + "\n".join(errors)
         )
 
     def test_min_compatible_version_invariant(self, all_operators: dict[str, type]):
@@ -165,7 +165,7 @@ class TestOperatorVersions:
 
         # 统一断言
         assert not errors, (
-                f"发现 {len(errors)} 个版本不变量问题:\n" + "\n".join(errors)
+            f"发现 {len(errors)} 个版本不变量问题:\n" + "\n".join(errors)
         )
 
     def test_discovered_operator_count_positive(self, all_operators: dict[str, type]):

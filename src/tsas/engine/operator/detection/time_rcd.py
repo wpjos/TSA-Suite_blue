@@ -187,11 +187,11 @@ class TimeRCDScorer(
         return (1, 0, 0)
 
     def __init__(
-            self,
-            *,
-            oid: str | None = None,
-            config: TimeRCDScorerConfig | None = None,
-            **kwargs,
+        self,
+        *,
+        oid: str | None = None,
+        config: TimeRCDScorerConfig | None = None,
+        **kwargs,
     ) -> None:
         """初始化 Time-RCD 评分器。
 
@@ -259,10 +259,10 @@ class TimeRCDScorer(
     # ------------------------------------------------------------------
 
     def _run_data(
-            self,
-            x: np.ndarray,
-            params: TimeRCDScorerRunParams | None,
-            idx: pd.Index | None = None,
+        self,
+        x: np.ndarray,
+        params: TimeRCDScorerRunParams | None,
+        idx: pd.Index | None = None,
     ) -> np.ndarray:
         """对输入做零样本异常分数推理。
 
@@ -424,11 +424,11 @@ class TimeRCDPredictor(
         return (1, 0, 0)
 
     def __init__(
-            self,
-            *,
-            oid: str | None = None,
-            config: TimeRCDPredictorConfig | None = None,
-            **kwargs,
+        self,
+        *,
+        oid: str | None = None,
+        config: TimeRCDPredictorConfig | None = None,
+        **kwargs,
     ) -> None:
         super().__init__(oid=oid, config=config, **kwargs)
         self._tester = None
@@ -479,10 +479,10 @@ class TimeRCDPredictor(
     # ------------------------------------------------------------------
 
     def _run_data(
-            self,
-            x: np.ndarray,
-            params: TimeRCDPredictorRunParams | None,
-            idx: pd.Index | None = None,
+        self,
+        x: np.ndarray,
+        params: TimeRCDPredictorRunParams | None,
+        idx: pd.Index | None = None,
     ) -> np.ndarray:
         denormalize = self._resolve_param(params, "denormalize", default=True)
         x_float32 = x.astype(np.float32) if x.dtype != np.float32 else x

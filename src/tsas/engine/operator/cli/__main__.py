@@ -55,6 +55,7 @@ def _print_usage() -> None:
     print("  python -m tsas.engine.operator.cli forecasting fit --input train.csv --target target --config fc.yaml")
     print("  python -m tsas.engine.operator.cli evaluation run --input data.csv --config eval.json")
 
+
 def main(args: list[str] | None = None) -> None:
     """
     统一分发入口主函数

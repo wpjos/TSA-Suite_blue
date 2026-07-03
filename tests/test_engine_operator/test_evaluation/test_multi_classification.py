@@ -20,12 +20,9 @@
 import numpy as np
 import pytest
 
-from tsas.engine.operator.evaluation.multi_classification import (
-    PerLabelMetricResult,
-    MultiClassificationMetricResult,
-    MultiClassificationMetricConfig,
-    MultipleClassificationMetric,
-)
+from tsas.engine.operator.evaluation.multi_classification import (MultiClassificationMetricConfig,
+                                                                  MultiClassificationMetricResult,
+                                                                  MultipleClassificationMetric, PerLabelMetricResult)
 
 
 # ============================================================================
@@ -458,7 +455,7 @@ class TestMultipleClassificationMetricEdgeCases:
         assert result.k_labels == 2
         # 混淆矩阵全为 0（所有预测都被忽略）
         assert sum(result.confusion_matrix[i][j]
-                    for i in range(2) for j in range(2)) == 0
+                   for i in range(2) for j in range(2)) == 0
         assert result.accuracy == 0.0
 
     def test_single_sample(self):

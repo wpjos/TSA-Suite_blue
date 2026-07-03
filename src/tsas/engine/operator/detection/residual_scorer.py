@@ -37,10 +37,10 @@ from enum import Enum
 
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from tsas.engine.operator.base import BiNumericOperator
-from tsas.engine.operator.detection.base import SingleScorerMixin, MultiScorerMixin
+from tsas.engine.operator.detection.base import MultiScorerMixin, SingleScorerMixin
 
 __all__ = [
     'ResidualMetric',
@@ -141,7 +141,7 @@ class ResidualScorer(SingleScorerMixin[None],
 
     def _run_data(self, x_real: np.ndarray, x_pred: np.ndarray, params: None,
                   real_idx: pd.Index | None = None, pred_idx: pd.Index | None = None) -> (
-            np.ndarray | tuple[np.ndarray, ResidualScorerExtraOutput]):
+        np.ndarray | tuple[np.ndarray, ResidualScorerExtraOutput]):
         """
         计算真实值与预测值之间的残差异常分数
 

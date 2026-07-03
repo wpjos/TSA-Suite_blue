@@ -18,11 +18,8 @@ import numpy as np
 import pytest
 from pandas import DataFrame
 
-from tsas.engine.operator.detection.residual_scorer import (
-    ResidualScorer,
-    ResidualScorerExtraOutput,
-    ResidualMapScorer,
-)
+from tsas.engine.operator.detection.residual_scorer import (ResidualMapScorer, ResidualScorer,
+                                                            ResidualScorerExtraOutput)
 
 
 # ============================================================================

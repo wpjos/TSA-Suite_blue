@@ -21,18 +21,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tsas.engine.operator.feature.construction.smooth_feature import (
-    SmoothFeatureConfig,
-    SmoothMeanFeature,
-    SmoothMinFeature,
-    SmoothMaxFeature,
-    SmoothStdFeature,
-    SmoothSlopeFeature,
-    SmoothGradMeanFeature,
-    SmoothGradStdFeature,
-    SmoothGrad2MeanFeature,
-    SmoothFftEnergyFeature,
-)
+from tsas.engine.operator.feature.construction.smooth_feature import (SmoothFeatureConfig, SmoothFftEnergyFeature,
+                                                                      SmoothGrad2MeanFeature, SmoothGradMeanFeature,
+                                                                      SmoothGradStdFeature, SmoothMaxFeature,
+                                                                      SmoothMeanFeature, SmoothMinFeature,
+                                                                      SmoothSlopeFeature, SmoothStdFeature)
 
 
 # ============================================================================

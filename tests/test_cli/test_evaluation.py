@@ -21,12 +21,7 @@ import pandas as pd
 import pytest
 from pydantic import BaseModel
 
-from tsas.engine.operator.cli.evaluation import (
-    main,
-    create_registry,
-    _resolve_output_key,
-    _result_to_dict,
-)
+from tsas.engine.operator.cli.evaluation import (_resolve_output_key, _result_to_dict, create_registry, main)
 
 
 # ============================================================================
@@ -321,6 +316,7 @@ class TestResultToDict:
         输入：Pydantic 模型实例
         预期：返回 model_dump() 结果
         """
+
         class _M(BaseModel):
             f1: float = 0.85
 

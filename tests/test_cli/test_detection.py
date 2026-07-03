@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tsas.engine.operator.cli.detection import main, create_registry
+from tsas.engine.operator.cli.detection import create_registry, main
 
 
 # ============================================================================
@@ -252,8 +252,8 @@ class TestDetectionFitAndRun:
         output_path = tmp_path / "result.csv"
         # mock ThresholdDecider.run 抛出与训练无关的 RuntimeError
         with patch(
-                'tsas.engine.operator.detection.threshold_decider.ThresholdDecider.run',
-                side_effect=RuntimeError("其他运行时错误"),
+            'tsas.engine.operator.detection.threshold_decider.ThresholdDecider.run',
+            side_effect=RuntimeError("其他运行时错误"),
         ):
             with pytest.raises(RuntimeError, match="其他运行时错误"):
                 main(['run', '--input', str(test_csv), '--output', str(output_path),

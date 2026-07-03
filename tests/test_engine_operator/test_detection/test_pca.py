@@ -16,16 +16,8 @@ import numpy as np
 import pytest
 from pandas import DataFrame
 
-from tsas.engine.operator.detection.pca import (
-    PCAPredictor,
-    PCAPredictorExtraOutput,
-    PCAScorer,
-    PCAScorerConfig,
-    PCAScorerExtraOutput,
-    PCADetector,
-    PCADetectorConfig,
-    PCADetectorExtraOutput,
-)
+from tsas.engine.operator.detection.pca import (PCADetector, PCADetectorExtraOutput, PCAPredictor,
+                                                PCAPredictorExtraOutput, PCAScorer, PCAScorerExtraOutput)
 
 
 # ============================================================================

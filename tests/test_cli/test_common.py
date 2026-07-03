@@ -19,13 +19,8 @@ import argparse
 import pandas as pd
 import pytest
 
-from tsas.engine.operator.cli.common import (
-    extract_encoding_arg,
-    build_help_subparser,
-    handle_help,
-    instantiate_operator,
-    auto_suffix,
-)
+from tsas.engine.operator.cli.common import (auto_suffix, build_help_subparser, extract_encoding_arg, handle_help,
+                                             instantiate_operator)
 from tsas.engine.operator.cli.detection import create_registry as create_detection_registry
 
 

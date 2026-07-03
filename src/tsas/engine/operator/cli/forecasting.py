@@ -36,12 +36,10 @@ import numpy as np
 import pandas as pd
 
 from tsas.engine.operator.base import BaseOperator, LearnableOperatorMixin
-from tsas.engine.operator.cli.common import (
-    extract_encoding_arg, build_help_subparser,
-    handle_help, instantiate_operator,
-)
+from tsas.engine.operator.cli.common import (build_help_subparser, extract_encoding_arg, handle_help,
+                                             instantiate_operator)
 from tsas.engine.operator.cli.config_loader import load_config
-from tsas.engine.operator.cli.io import load_data, save_data, ensure_encoding
+from tsas.engine.operator.cli.io import ensure_encoding, load_data, save_data
 from tsas.engine.operator.cli.registry import OperatorRegistry
 from tsas.engine.operator.forecasting.base import BaseForecaster
 
@@ -116,7 +114,7 @@ def _handle_help(registry: OperatorRegistry, operator_name: str | None) -> None:
 
 
 def _instantiate_operator(
-        config: dict, registry: OperatorRegistry
+    config: dict, registry: OperatorRegistry
 ) -> tuple[BaseOperator, list[str] | None, str | None]:
     """根据配置文件实例化单个预测算子
 

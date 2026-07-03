@@ -58,7 +58,7 @@ import numpy as np
 import pandas as pd
 import torch
 from loguru import logger
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader
 from tsas.basic.dataset.sliding_window import DataFrameSlidingWindowDataset
@@ -224,11 +224,11 @@ class XiHeGammaScorer(
         return (1, 0, 0)
 
     def __init__(
-            self,
-            *,
-            oid: str | None = None,
-            config: XiHeGammaScorerConfig | None = None,
-            **kwargs,
+        self,
+        *,
+        oid: str | None = None,
+        config: XiHeGammaScorerConfig | None = None,
+        **kwargs,
     ):
         """初始化羲和 Gamma 评分器
 
@@ -287,7 +287,7 @@ class XiHeGammaScorer(
     # ------------------------------------------------------------------
 
     def _adjust_data(
-            self, x: np.ndarray, params: None, idx: pd.Index | None = None,
+        self, x: np.ndarray, params: None, idx: pd.Index | None = None,
     ) -> np.ndarray:
         """按需对输入数据进行 StandardScaler 标准化
 
@@ -314,7 +314,7 @@ class XiHeGammaScorer(
     # ------------------------------------------------------------------
 
     def _iter_batch_results(
-            self, x: np.ndarray, params: None, idx: pd.Index | None,
+        self, x: np.ndarray, params: None, idx: pd.Index | None,
     ) -> Generator[
         tuple[pd.Index | np.ndarray, tuple[np.ndarray, XiHeGammaScorerExtraOutput]],
         None, None,
@@ -451,9 +451,9 @@ class XiHeGammaScorer(
             yield batch_idx, (batch_score_arr, batch_eo)
 
     def _merge_batch_results(
-            self,
-            batch_results: list[tuple[pd.Index | np.ndarray, tuple[np.ndarray, XiHeGammaScorerExtraOutput]]],
-            params: None,
+        self,
+        batch_results: list[tuple[pd.Index | np.ndarray, tuple[np.ndarray, XiHeGammaScorerExtraOutput]]],
+        params: None,
     ) -> tuple[np.ndarray, XiHeGammaScorerExtraOutput]:
         """合并所有批次结果为最终输出
 
@@ -507,11 +507,11 @@ class XiHeGammaScorer(
 
     @staticmethod
     def _batch_merge(
-            var_columns: list,
-            unmerged_cache: dict,
-            merge_cache: tuple,
-            merge_scores_fn,
-            ready_time=None,
+        var_columns: list,
+        unmerged_cache: dict,
+        merge_cache: tuple,
+        merge_scores_fn,
+        ready_time=None,
     ) -> tuple[list, np.ndarray, np.ndarray]:
         """合并批次窗口结果
 

@@ -8,7 +8,7 @@
 """
 
 from abc import ABCMeta
-from typing import Generic, TypeVar, cast
+from typing import cast, Generic, TypeVar
 
 import numpy as np
 import pandas as pd

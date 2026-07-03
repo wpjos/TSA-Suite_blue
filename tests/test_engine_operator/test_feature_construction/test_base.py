@@ -27,21 +27,12 @@ import pandas as pd
 import pytest
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from tsas.engine.operator.feature.construction.base import (
-    Alignment,
-    Padding,
-    BaseFeatureConfig,
-    WindowFeatureConfig,
-    BaseFeatureMixin,
-    IndependentMapFeature,
-    IndependentWindowFeature,
-    JointMapFeature,
-    JointWindowFeature,
-    LearnableIndependentMapFeature,
-    LearnableIndependentWindowFeature,
-    LearnableJointMapFeature,
-    LearnableJointWindowFeature,
-)
+from tsas.engine.operator.feature.construction.base import (Alignment, BaseFeatureConfig, BaseFeatureMixin,
+                                                            IndependentMapFeature, IndependentWindowFeature,
+                                                            JointMapFeature, JointWindowFeature,
+                                                            LearnableIndependentMapFeature,
+                                                            LearnableIndependentWindowFeature, LearnableJointMapFeature,
+                                                            LearnableJointWindowFeature, Padding, WindowFeatureConfig)
 
 
 # ============================================================================

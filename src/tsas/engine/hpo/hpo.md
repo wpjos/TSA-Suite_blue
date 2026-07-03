@@ -21,11 +21,11 @@ src/tsas/engine/hpo/
 
 HPO 模块提供三个核心组件：
 
-| 组件                    | 文件               | 功能                                       |
-|-----------------------|--------------------|------------------------------------------|
+| 组件                                    | 文件             | 功能                         |
+|---------------------------------------|----------------|----------------------------|
 | `SearchHint` + `extract_search_space` | search_hint.py | 基于 Pydantic 原生约束的搜索空间声明与提取 |
-| `HPOTrainer`          | trainer.py         | HPO 编排器，自动搜索最优超参数组合                   |
-| `HPOResult` / `TrialInfo` | result.py         | 优化结果数据容器                                 |
+| `HPOTrainer`                          | trainer.py     | HPO 编排器，自动搜索最优超参数组合        |
+| `HPOResult` / `TrialInfo`             | result.py      | 优化结果数据容器                   |
 
 ---
 
@@ -68,19 +68,19 @@ from tsas.engine.hpo import SearchHint
 class AdvancedConfig(BaseModel):
     # log 尺度采样
     learning_rate: Annotated[float, Field(default=0.001, ge=1e-5, le=1e-1),
-                             SearchHint(log=True)]
+    SearchHint(log=True)]
     # 非1步长
     batch_size: Annotated[int, Field(default=32, ge=8, le=256),
-                          SearchHint(step=8)]
+    SearchHint(step=8)]
 ```
 
 ### 2.4 搜索空间类型
 
-| 类型   | Pydantic 声明               | 映射为 Optuna 方法              |
-|------|---------------------------|---------------------------|
-| 连续型 | `Field(ge=..., le=...)`  | `trial.suggest_float`     |
-| 整数型 | `Field(ge=..., le=...)`  | `trial.suggest_int`       |
-| 离散型 | `Literal[...]` / `Enum`    | `trial.suggest_categorical` |
+| 类型  | Pydantic 声明             | 映射为 Optuna 方法               |
+|-----|-------------------------|-----------------------------|
+| 连续型 | `Field(ge=..., le=...)` | `trial.suggest_float`       |
+| 整数型 | `Field(ge=..., le=...)` | `trial.suggest_int`         |
+| 离散型 | `Literal[...]` / `Enum` | `trial.suggest_categorical` |
 
 **注意**：数值型字段必须有 `ge`/`le`/`gt`/`lt` 中至少一个边界约束才会参与搜索；无约束的字段自动跳过。
 
@@ -115,6 +115,8 @@ import optuna
 from tsas.engine.hpo import config_to_optuna_suggestions
 
 study = optuna.create_study(direction="maximize")
+
+
 def objective(trial):
     params = config_to_optuna_suggestions(trial, search_space)
     detector = KNNDetector(**params)
@@ -149,52 +151,53 @@ trainer = HPOTrainer(ZScoreDetector, metric_op, n_trials=50, top_k=3)
 result = trainer.fit(train_data, val_labels=val_labels, val_split=0.3)
 
 # 访问结果
-print(result.best_params)       # 最优参数
-print(result.best_score)        # 最优分数（dict）
+print(result.best_params)  # 最优参数
+print(result.best_score)  # 最优分数（dict）
 print(result.best_score_value)  # 最优主分数值（float）
-print(result.best_operator)     # 最优算子实例
+print(result.best_operator)  # 最优算子实例
 ```
 
 ### 3.3 HPOTrainer 参数
 
-| 参数             | 默认值          | 说明                                          |
-|----------------|--------------|---------------------------------------------|
-| `operator`     | 必填           | 算子类或算子实例                                    |
-| `metric_op`    | 必填           | 评估指标算子实例（BaseMetricOperator 子类）             |
-| `search_space` | `None`       | 自定义搜索空间，None 时自动从 Config 提取               |
-| `directions`   | `"maximize"` | 优化方向，支持单目标字符串或多目标列表                       |
+| 参数             | 默认值          | 说明                                         |
+|----------------|--------------|--------------------------------------------|
+| `operator`     | 必填           | 算子类或算子实例                                   |
+| `metric_op`    | 必填           | 评估指标算子实例（BaseMetricOperator 子类）            |
+| `search_space` | `None`       | 自定义搜索空间，None 时自动从 Config 提取                |
+| `directions`   | `"maximize"` | 优化方向，支持单目标字符串或多目标列表                        |
 | `sampler`      | `"tpe"`      | Optuna 采样器：`"tpe"` / `"random"` / `"grid"` |
-| `n_trials`     | `100`        | 搜索试验次数                                      |
+| `n_trials`     | `100`        | 搜索试验次数                                     |
 | `time_limit`   | `None`       | 时间限制（秒），None 表示不限                          |
-| `pruning`      | `False`      | 是否启用 Optuna MedianPruner 剪枝               |
-| `top_k`        | `None`       | 返回最优 TopK 结果，None 时单目标返回1个               |
-| `random_seed`  | `42`         | 随机种子                                        |
+| `pruning`      | `False`      | 是否启用 Optuna MedianPruner 剪枝                |
+| `top_k`        | `None`       | 返回最优 TopK 结果，None 时单目标返回1个                 |
+| `random_seed`  | `42`         | 随机种子                                       |
 
 ### 3.4 支持的采样器
 
-| 采样器       | 参数值       | 说明                |
-|-----------|-----------|-------------------|
-| TPE       | `"tpe"`   | Tree-structured Parzen Estimator，适合大多数场景 |
-| 随机搜索     | `"random"` | 随机搜索，适合基线对比        |
-| 网格搜索     | `"grid"`  | 网格搜索，适合小搜索空间       |
+| 采样器  | 参数值        | 说明                                       |
+|------|------------|------------------------------------------|
+| TPE  | `"tpe"`    | Tree-structured Parzen Estimator，适合大多数场景 |
+| 随机搜索 | `"random"` | 随机搜索，适合基线对比                              |
+| 网格搜索 | `"grid"`   | 网格搜索，适合小搜索空间                             |
 
 ### 3.5 验证策略
 
 支持三种验证方式：
+
 - 独立验证集: `val_data` 参数
 - 训练集内切分: `val_split` 参数（如 `0.3` 表示 30% 验证）
 - K-Fold 交叉验证: `cv_folds` 参数
 
 ### 3.6 结果访问
 
-| 属性             | 类型          | 说明                     |
-|----------------|-------------|------------------------|
-| `best_params`  | dict        | 最优试验的超参数组合              |
-| `best_score`   | dict[str, float] | 最优试验的各指标分数           |
-| `best_score_value` | float   | 最优试验的主分数值               |
-| `best_operator` | BaseOperator | None | 最优试验对应的已训练算子实例     |
-| `all_trials`   | list[TrialInfo] | 全量试验记录               |
-| `best_trials`  | list[TrialInfo] | TopK 最优试验列表          |
+| 属性                 | 类型               | 说明          |
+|--------------------|------------------|-------------|
+| `best_params`      | dict             | 最优试验的超参数组合  |
+| `best_score`       | dict[str, float] | 最优试验的各指标分数  |
+| `best_score_value` | float            | 最优试验的主分数值   |
+| `best_operator`    | BaseOperator     | None        | 最优试验对应的已训练算子实例     |
+| `all_trials`       | list[TrialInfo]  | 全量试验记录      |
+| `best_trials`      | list[TrialInfo]  | TopK 最优试验列表 |
 
 ---
 
@@ -213,6 +216,7 @@ HPO 模块对 Optuna 采用延迟导入策略，避免非 HPO 场景下的依赖
 ### 4.3 Composite 算子支持
 
 HPOTrainer 支持 Composite 算子的递归搜索空间提取和重建，子算子参数自动添加层级前缀：
+
 - Predictor: `predictor.`
 - Scorer: `scorer_0.`, `scorer_1.`, ...
 - Decider: `decider.`

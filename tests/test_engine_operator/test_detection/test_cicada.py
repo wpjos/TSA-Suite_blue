@@ -1011,16 +1011,16 @@ class TestCICADAScorerVsDecisionFunction:
         df_scores = scorer._predictor._model.decision_function(test_data)
 
         # 记录统计信息（通过 print 输出到测试报告）
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"CICADAScorer vs CICADA.decision_function 分数对比")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"CICADAScorer  — mean: {scores.mean():.6f}, std: {scores.std():.6f}, "
               f"min: {scores.min():.6f}, max: {scores.max():.6f}")
         print(f"decision_func — mean: {df_scores.mean():.6f}, std: {df_scores.std():.6f}, "
               f"min: {df_scores.min():.6f}, max: {df_scores.max():.6f}")
         corr = np.corrcoef(scores, df_scores)[0, 1]
         print(f"Pearson r: {corr:.4f}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # 验证两者绝对值不同（通常量级差异显著）
         # 允许极端情况下量级接近但不完全相同

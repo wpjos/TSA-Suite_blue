@@ -30,10 +30,7 @@ import pandas as pd
 from pydantic import BaseModel, Field
 
 from tsas.engine.operator.base import NumericOperator, UnsupervisedNumericOperatorMixin
-from tsas.engine.operator.detection.base import (
-    SingleScorerMixin,
-    BaseDeciderMixin,
-)
+from tsas.engine.operator.detection.base import (BaseDeciderMixin, SingleScorerMixin)
 from tsas.engine.operator.detection.threshold_decider import (
     ThresholdDecider,
     ThresholdDeciderConfig,

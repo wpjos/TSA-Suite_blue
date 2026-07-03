@@ -15,26 +15,12 @@ HPO 训练编排器单元测试
 - HPOTrainer.fit() 端到端集成测试（少量 trial）
 """
 
-import inspect
-from typing import Literal
-
 import numpy as np
 import pytest
-from pydantic import BaseModel, Field
 
-from tsas.engine.hpo.search_hint import (
-    extract_search_space,
-    extract_search_space_from_operator,
-    config_to_optuna_suggestions,
-)
-from tsas.engine.hpo.trainer import (
-    HPOTrainer,
-    _rebuild_operator,
-    _resolve_validation_strategy,
-)
-from tsas.engine.operator.base import BaseOperator
-from tsas.engine.operator.detection.knn import KNNDetector, KNNDetectorConfig
-from tsas.engine.operator.detection.zscore import ZScoreDetector, ZScoreDetectorConfig
+from tsas.engine.hpo.trainer import (_rebuild_operator, _resolve_validation_strategy, HPOTrainer)
+from tsas.engine.operator.detection.knn import KNNDetector
+from tsas.engine.operator.detection.zscore import ZScoreDetector
 
 
 # ============================================================================
@@ -525,8 +511,8 @@ class TestHPOTrainerFit:
         trainer = HPOTrainer(ThresholdDecider, _MockMetric(), n_trials=1,
                              search_space={})
         with pytest.raises(ValueError, match="搜索空间为空"):
-            trainer.fit(np.random.randn(10, 3), val_labels=np.array([0]*10),
-                       val_split=0.3)
+            trainer.fit(np.random.randn(10, 3), val_labels=np.array([0] * 10),
+                        val_split=0.3)
 
 
 # ============================================================================
@@ -614,9 +600,11 @@ class TestResolveSearchSpaceErrors:
             @classmethod
             def name(cls):
                 return "no_config"
+
             @classmethod
             def version(cls) -> tuple[int, ...]:
                 return (1, 0, 0)
+
             def _run(self, x, *, params=None):
                 return x
 
@@ -771,12 +759,15 @@ class TestRebuildOperatorFullCoverage:
 
         class _PlainOp(BaseOperator):
             """无 _config_type 的普通算子"""
+
             @classmethod
             def name(cls):
                 return "plain_op"
+
             @classmethod
             def version(cls) -> tuple[int, ...]:
                 return (1, 0, 0)
+
             def _run(self, x, *, params=None):
                 return x
 
@@ -828,9 +819,11 @@ class TestOperatorTypeErrors:
             @classmethod
             def name(cls):
                 return "no_cfg"
+
             @classmethod
             def version(cls) -> tuple[int, ...]:
                 return (1, 0, 0)
+
             def _run(self, x, *, params=None):
                 return x
 
@@ -855,6 +848,7 @@ class TestResolveMetricNamesFallback:
 
         class _BadMetric:
             """scores() 会抛出异常的指标算子"""
+
             def scores(self, inputs):
                 raise RuntimeError("模拟评估失败")
 

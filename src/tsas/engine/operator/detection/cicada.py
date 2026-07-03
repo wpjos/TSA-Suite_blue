@@ -498,7 +498,8 @@ class CICADAScorerExtraOutput(BaseModel):
     feature_recon: np.ndarray = Field(description="逐变量重构值，形状为 (n_samples, n_vars)，列顺序与输入一致")
     """逐变量重构值，形状 (n_samples, n_vars)"""
 
-    feature_scores: np.ndarray = Field(description="逐变量异常分数，形状为 (n_samples, n_vars)，由重构值与原始输入按 metric 计算得到")
+    feature_scores: np.ndarray = Field(
+        description="逐变量异常分数，形状为 (n_samples, n_vars)，由重构值与原始输入按 metric 计算得到")
     """逐变量异常分数，形状 (n_samples, n_vars)"""
 
 

@@ -19,11 +19,8 @@
 import numpy as np
 import pytest
 
-from tsas.engine.operator.evaluation.binary_classification import (
-    BinaryClassificationResult,
-    BinaryClassificationConfig,
-    BinaryClassificationMetric,
-)
+from tsas.engine.operator.evaluation.binary_classification import (BinaryClassificationMetric,
+                                                                   BinaryClassificationResult)
 
 
 # ============================================================================

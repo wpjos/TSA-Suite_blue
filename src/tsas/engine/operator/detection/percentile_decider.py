@@ -139,7 +139,8 @@ class PercentileDecider(BaseDeciderMixin[None],
         # 计算百分位阈值
         self._threshold = float(np.percentile(x.ravel(), self.config.percentile))
 
-    def _run_data(self, x: np.ndarray, params: None, idx: pd.Index | None = None) -> np.ndarray | tuple[np.ndarray, PercentileDeciderExtraOutput]:
+    def _run_data(self, x: np.ndarray, params: None, idx: pd.Index | None = None) -> np.ndarray | tuple[
+        np.ndarray, PercentileDeciderExtraOutput]:
         """
         推理阶段：比较分数与阈值，输出异常标签
 

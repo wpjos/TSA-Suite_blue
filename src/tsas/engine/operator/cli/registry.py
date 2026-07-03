@@ -236,7 +236,7 @@ class OperatorRegistry:
         self._register_with_version(name=name, cls=cls, is_manual=True)
 
     def _register_with_version(
-            self, name: str, cls: type, *, is_manual: bool
+        self, name: str, cls: type, *, is_manual: bool
     ) -> None:
         """
         按版本覆盖策略注册算子（内部统一入口）

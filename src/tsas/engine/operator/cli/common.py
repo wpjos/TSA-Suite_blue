@@ -92,7 +92,7 @@ def extract_encoding_arg(args: list[str] | None) -> tuple[str | None, list[str]]
 
 
 def build_help_subparser(
-        subparsers: argparse._SubParsersAction,
+    subparsers: argparse._SubParsersAction,
 ) -> argparse.ArgumentParser:
     """构建标准的 ``help`` 子命令解析器
 
@@ -121,8 +121,8 @@ def build_help_subparser(
 
 
 def handle_help(
-        registry: OperatorRegistry,
-        operator_name: str | None,
+    registry: OperatorRegistry,
+    operator_name: str | None,
 ) -> None:
     """统一处理 ``help`` 子命令
 
@@ -148,8 +148,8 @@ def handle_help(
 
 
 def instantiate_operator(
-        op_spec: dict,
-        registry: OperatorRegistry,
+    op_spec: dict,
+    registry: OperatorRegistry,
 ) -> BaseOperator:
     """从配置字典中实例化单个算子
 

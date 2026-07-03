@@ -25,26 +25,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from tsas.engine.operator.cli.help_generator import (
-    generate_list,
-    generate_detail,
-    generate_config_params_table,
-    _extract_summary,
-    _extract_description,
-    _extract_docstring_section,
-    _extract_type_tags,
-    _extract_role,
-    _is_learnable,
-    _supervision_type,
-    _supports_batch_run,
-    _classify_operator,
-    _format_type,
-    _extract_constraints,
-    _display_width,
-    _pad_cell,
-    _build_aligned_table,
-    _extract_model_fields_description,
-)
+from tsas.engine.operator.cli.help_generator import (_build_aligned_table, _classify_operator, _display_width,
+                                                     _extract_constraints, _extract_description,
+                                                     _extract_docstring_section, _extract_model_fields_description,
+                                                     _extract_role, _extract_summary, _extract_type_tags, _format_type,
+                                                     _is_learnable, _pad_cell, _supervision_type, _supports_batch_run,
+                                                     generate_config_params_table, generate_detail, generate_list)
 
 
 # ============================================================================
@@ -109,6 +95,7 @@ class _DocOperator:
 
 class _NoDocOperator:
     """   """
+
     @classmethod
     def name(cls) -> str:
         return "no_doc_op"
@@ -402,8 +389,10 @@ class TestExtractRole:
         输入：普通类
         预期：返回 "未知"
         """
+
         class _Plain:
             pass
+
         assert _extract_role(_Plain) == "未知"
 
 
@@ -429,8 +418,10 @@ class TestCapabilityChecks:
         输入：普通类
         预期：返回 False
         """
+
         class _Plain:
             pass
+
         assert _is_learnable(_Plain) is False
 
     def test_supervision_unsupervised(self):
@@ -448,8 +439,10 @@ class TestCapabilityChecks:
         输入：普通类
         预期：返回 "无监督"
         """
+
         class _Plain:
             pass
+
         assert _supervision_type(_Plain) == "无监督"
 
     def test_batch_run_false(self):
@@ -458,8 +451,10 @@ class TestCapabilityChecks:
         输入：普通类
         预期：返回 False
         """
+
         class _Plain:
             pass
+
         assert _supports_batch_run(_Plain) is False
 
 
@@ -598,8 +593,10 @@ class TestExtractTypeTags:
         输入：普通类
         预期：返回空列表
         """
+
         class _Plain:
             pass
+
         tags = _extract_type_tags(_Plain)
         assert len(tags) == 0
 
@@ -732,8 +729,10 @@ class TestFormatType:
 
     def test_class_with_name(self):
         """预期：返回类名"""
+
         class MyCls:
             pass
+
         assert "MyCls" in _format_type(MyCls)
 
 
@@ -1248,12 +1247,14 @@ class TestExtractDescriptionEdgeCases:
         输入：docstring 中第一段后紧跟 Args: 标记
         预期：只返回第一段文本，不含 Args 内容
         """
+
         class _SectionDocClass:
             """这是第一段描述文本
 
             Args:
                 x: 参数
             """
+
         result = _extract_description(_SectionDocClass)
         assert "这是第一段描述文本" in result
         assert "Args" not in result
@@ -1265,12 +1266,14 @@ class TestExtractDescriptionEdgeCases:
         输入：docstring 中第一段后紧跟 Input: 标记
         预期：只返回第一段文本
         """
+
         class _InputDocClass:
             """功能描述
 
             Input:
                 DataFrame — 数据
             """
+
         result = _extract_description(_InputDocClass)
         assert "功能描述" in result
         assert "DataFrame" not in result

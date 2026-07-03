@@ -24,13 +24,13 @@ src/tsas/engine/operator/evaluation/
 
 本模块已提供以下评价指标算子，可直接使用：
 
-| 算子类                      | 输入类型                                  | MR 类型                        | 功能描述                      |
-|---------------------------|----------------------------------------|------------------------------|-----------------------------|
-| `BinaryClassificationMetric` | `tuple[np.ndarray, np.ndarray]`      | `BinaryClassificationResult`  | 二分类离散标签指标（F1, FAR, MCC） |
-| `BinaryClassificationCurve` | `tuple[np.ndarray, np.ndarray]`      | `BinaryClassificationCurveResult` | 二分类曲线指标（AUC-ROC, AUC-PR, Best-F1） |
-| `MultipleClassificationMetric` | `tuple[np.ndarray, np.ndarray]`   | `MultiClassificationMetricResult` | 多分类指标（Macro 平均 + Per-Class） |
-| `PointAdjust`              | `tuple[np.ndarray, np.ndarray]`      | `PointAdjustResult`           | 点调整指标（PA-F1，时序异常检测）   |
-| `SelfEvaluation`           | `np.ndarray`                         | `float`                       | 无标签自评估（变异系数 + Sigmoid） |
+| 算子类                            | 输入类型                            | MR 类型                             | 功能描述                              |
+|--------------------------------|---------------------------------|-----------------------------------|-----------------------------------|
+| `BinaryClassificationMetric`   | `tuple[np.ndarray, np.ndarray]` | `BinaryClassificationResult`      | 二分类离散标签指标（F1, FAR, MCC）           |
+| `BinaryClassificationCurve`    | `tuple[np.ndarray, np.ndarray]` | `BinaryClassificationCurveResult` | 二分类曲线指标（AUC-ROC, AUC-PR, Best-F1） |
+| `MultipleClassificationMetric` | `tuple[np.ndarray, np.ndarray]` | `MultiClassificationMetricResult` | 多分类指标（Macro 平均 + Per-Class）       |
+| `PointAdjust`                  | `tuple[np.ndarray, np.ndarray]` | `PointAdjustResult`               | 点调整指标（PA-F1，时序异常检测）               |
+| `SelfEvaluation`               | `np.ndarray`                    | `float`                           | 无标签自评估（变异系数 + Sigmoid）            |
 
 ### 0.1 BinaryClassificationMetric 使用示例
 

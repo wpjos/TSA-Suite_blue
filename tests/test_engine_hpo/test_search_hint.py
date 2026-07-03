@@ -22,19 +22,13 @@ HPO 搜索空间声明与提取单元测试
 from enum import Enum
 from typing import Annotated, Literal
 
-import numpy as np
 import pytest
 from pydantic import BaseModel, Field
 
-from tsas.engine.hpo.search_hint import (
-    SearchHint,
-    config_to_optuna_suggestions,
-    extract_search_space,
-    extract_search_space_from_operator,
-)
-from tsas.engine.operator.detection.base import BaseDetector
-from tsas.engine.operator.detection.zscore import ZScoreDetector, ZScoreDetectorConfig
-from tsas.engine.operator.detection.knn import KNNDetector, KNNDetectorConfig
+from tsas.engine.hpo.search_hint import (config_to_optuna_suggestions, extract_search_space,
+                                         extract_search_space_from_operator, SearchHint)
+from tsas.engine.operator.detection.knn import KNNDetector
+from tsas.engine.operator.detection.zscore import ZScoreDetector
 
 
 # ============================================================================
@@ -77,9 +71,9 @@ class _MixedConfig(BaseModel):
 class _SearchHintConfig(BaseModel):
     """带有 SearchHint 的 Config"""
     learning_rate: Annotated[float, Field(default=0.001, ge=1e-5, le=1e-1),
-                             SearchHint(log=True)]
+    SearchHint(log=True)]
     batch_size: Annotated[int, Field(default=32, ge=8, le=256),
-                          SearchHint(step=8)]
+    SearchHint(step=8)]
 
 
 class _NoSearchFieldsConfig(BaseModel):
@@ -447,6 +441,7 @@ class TestConfigToOptunaSuggestions:
         space = {"n": {"type": "int", "low": 1, "high": 10}}
 
         captured = {}
+
         def objective(trial):
             captured.update(config_to_optuna_suggestions(trial, space))
             return 0.0
@@ -467,6 +462,7 @@ class TestConfigToOptunaSuggestions:
         space = {"p": {"type": "float", "low": 0.0, "high": 1.0}}
 
         captured = {}
+
         def objective(trial):
             captured.update(config_to_optuna_suggestions(trial, space))
             return 0.0
@@ -487,6 +483,7 @@ class TestConfigToOptunaSuggestions:
         space = {"lr": {"type": "float", "low": 1e-5, "high": 1e-1, "log": True}}
 
         captured = {}
+
         def objective(trial):
             captured.update(config_to_optuna_suggestions(trial, space))
             return 0.0
@@ -506,6 +503,7 @@ class TestConfigToOptunaSuggestions:
         space = {"bs": {"type": "int", "low": 8, "high": 64, "step": 4}}
 
         captured = {}
+
         def objective(trial):
             captured.update(config_to_optuna_suggestions(trial, space))
             return 0.0
@@ -525,6 +523,7 @@ class TestConfigToOptunaSuggestions:
         space = {"m": {"type": "cat", "choices": ["euclidean", "manhattan"]}}
 
         captured = {}
+
         def objective(trial):
             captured.update(config_to_optuna_suggestions(trial, space))
             return 0.0
@@ -548,6 +547,7 @@ class TestConfigToOptunaSuggestions:
         }
 
         captured = {}
+
         def objective(trial):
             captured.update(config_to_optuna_suggestions(trial, space, params=["a"]))
             return 0.0
@@ -569,6 +569,7 @@ class TestConfigToOptunaSuggestions:
         }
 
         captured = {}
+
         def objective(trial):
             captured.update(config_to_optuna_suggestions(trial, space))
             return 0.0
@@ -587,6 +588,7 @@ class TestConfigToOptunaSuggestions:
         space = {"predictor.n_components": {"type": "int", "low": 1, "high": 50}}
 
         captured = {}
+
         def objective(trial):
             captured.update(config_to_optuna_suggestions(trial, space))
             return 0.0
@@ -608,6 +610,7 @@ class TestConfigToOptunaSuggestions:
         space = {"x": {"type": "int", "default": 5}}
 
         captured = {}
+
         def objective(trial):
             captured.update(config_to_optuna_suggestions(trial, space))
             return 0.0
@@ -626,6 +629,7 @@ class TestConfigToOptunaSuggestions:
         space = {"x": {"default": 42}}
 
         captured = {}
+
         def objective(trial):
             captured.update(config_to_optuna_suggestions(trial, space))
             return 0.0
@@ -675,7 +679,6 @@ class TestConfigToOptunaSuggestions:
         # ValueError 被 Optuna 捕获，trial 标记为 FAIL
         assert study.trials[0].state == self.optuna.trial.TrialState.FAIL
 
-
     def test_suggest_param_not_in_space(self):
         """
         目的：验证 params 包含不存在于搜索空间的参数名时被跳过
@@ -685,6 +688,7 @@ class TestConfigToOptunaSuggestions:
         space = {"a": {"type": "int", "low": 1, "high": 10}}
 
         captured = {}
+
         def objective(trial):
             captured.update(config_to_optuna_suggestions(
                 trial, space, params=["a", "nonexistent"]
@@ -705,6 +709,7 @@ class TestConfigToOptunaSuggestions:
         space = {"x": {"type": "float", "default": 3.14}}
 
         captured = {}
+
         def objective(trial):
             captured.update(config_to_optuna_suggestions(trial, space))
             return 0.0

@@ -22,11 +22,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tsas.engine.operator.evaluation.forecasting_metrics import (
-    ForecastingMetricResult,
-    ForecastingMetricConfig,
-    ForecastingMetrics,
-)
+from tsas.engine.operator.evaluation.forecasting_metrics import (ForecastingMetricConfig, ForecastingMetricResult,
+                                                                 ForecastingMetrics)
 
 
 # ============================================================================

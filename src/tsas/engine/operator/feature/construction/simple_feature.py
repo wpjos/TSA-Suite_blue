@@ -19,14 +19,9 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from tsas.engine.operator.base import DataFrameMeta
-from tsas.engine.operator.feature.construction.base import (
-    BaseFeatureConfig,
-    WindowFeatureConfig,
-    IndependentMapFeature,
-    IndependentWindowFeature,
-    JointMapFeature,
-    LearnableJointMapFeature,
-)
+from tsas.engine.operator.feature.construction.base import (BaseFeatureConfig, IndependentMapFeature,
+                                                            IndependentWindowFeature, JointMapFeature,
+                                                            LearnableJointMapFeature, WindowFeatureConfig)
 
 __all__ = [
     'SquareConfig',

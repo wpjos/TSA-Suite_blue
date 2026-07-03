@@ -133,8 +133,8 @@ def _validate_positive_input(x: np.ndarray) -> None:
 
 
 def _compute_distribution_params(
-        dist: ScoreDistribution,
-        data: np.ndarray,
+    dist: ScoreDistribution,
+    data: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
     """从数据计算分布参数 μ 和 σ
 
@@ -163,11 +163,11 @@ def _compute_distribution_params(
 
 
 def _merge_scores(
-        dist: ScoreDistribution,
-        scores: np.ndarray,
-        mus: np.ndarray,
-        sigmas: np.ndarray,
-        weights: np.ndarray | None,
+    dist: ScoreDistribution,
+    scores: np.ndarray,
+    mus: np.ndarray,
+    sigmas: np.ndarray,
+    weights: np.ndarray | None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """核心合并逻辑 — 两个算子共用
 

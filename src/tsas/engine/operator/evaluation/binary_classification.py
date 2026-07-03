@@ -388,8 +388,8 @@ class BinaryClassificationMetric(
 
         # ========== 计算核心指标 ==========
         accuracy = self._safe_divide(tp + tn, total, default_for_zero)  # 准确率：正确预测占比
-        precision = self._safe_divide(tp, tp + fp, default_for_zero)    # 精确率：预测为正中真正为正的比例
-        recall = self._safe_divide(tp, tp + fn, default_for_zero)       # 召回率：真正为正中被正确预测的比例
+        precision = self._safe_divide(tp, tp + fp, default_for_zero)  # 精确率：预测为正中真正为正的比例
+        recall = self._safe_divide(tp, tp + fn, default_for_zero)  # 召回率：真正为正中被正确预测的比例
         specificity = self._safe_divide(tn, tn + fp, default_for_zero)  # 特异度：真正为负中被正确预测的比例
 
         # F1 分数：精确率与召回率的调和平均
@@ -400,11 +400,11 @@ class BinaryClassificationMetric(
         )
 
         # ========== 计算衍生指标 ==========
-        tpr = recall                                                    # 真正率 = 召回率
-        fpr = self._safe_divide(fp, fp + tn, default_for_zero)         # 假正率：负类被误判为正的比例
-        far = fpr                                                       # 故障误报率（FAR 等同于 FPR）
-        fdr = recall                                                    # 故障检出率（FDR 等同于 Recall）
-        mar = 1.0 - recall                                              # 故障漏报率 = 1 - Recall
+        tpr = recall  # 真正率 = 召回率
+        fpr = self._safe_divide(fp, fp + tn, default_for_zero)  # 假正率：负类被误判为正的比例
+        far = fpr  # 故障误报率（FAR 等同于 FPR）
+        fdr = recall  # 故障检出率（FDR 等同于 Recall）
+        mar = 1.0 - recall  # 故障漏报率 = 1 - Recall
 
         # ========== 计算 MCC ==========
         # Matthews 相关系数：适用于不平衡数据集的综合评价指标

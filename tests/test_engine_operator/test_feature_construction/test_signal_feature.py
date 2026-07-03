@@ -28,45 +28,21 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tsas.engine.operator.feature.construction.signal_feature import (
-    # Config
-    SampleRateFeatureConfig,
-    BandFeatureConfig,
-    AverageKurtosisConfig,
-    SpeedRpmConfig,
-    # Group A
-    MeanSquareFeature,
-    VarianceFeature,
-    RmsFeature,
-    PeakPeakFeature,
-    ShapeFactorFeature,
-    CrestFeature,
-    ImpulseFeature,
-    ClearanceFeature,
-    SkewnessFeature,
-    KurtosisFeature,
-    GiniIndexFeature,
-    # Group B
-    SpectralEntropyFeature,
-    RoughnessFeature,
-    SharpnessFeature,
-    # Group C
-    SpectralCentroidFeature,
-    MeanSquareFrequencyFeature,
-    RmsFrequencyFeature,
-    FrequencyVarianceFeature,
-    FrequencyStdFeature,
-    # Group D
-    EnvelopeRmsFeature,
-    AverageKurtosisFeature,
-    HnrFeature,
-    # Group E
-    BandKurtosisFeature,
-    BandRmsFeature,
-    BandHnrFeature,
-    # Group F
-    SpeedRpmFeature,
-)
+from tsas.engine.operator.feature.construction.signal_feature import (AverageKurtosisConfig, AverageKurtosisFeature,
+                                                                      BandFeatureConfig, BandHnrFeature,
+                                                                      BandKurtosisFeature, BandRmsFeature,
+                                                                      ClearanceFeature, CrestFeature,
+                                                                      EnvelopeRmsFeature, FrequencyStdFeature,
+                                                                      FrequencyVarianceFeature, GiniIndexFeature,
+                                                                      HnrFeature, ImpulseFeature, KurtosisFeature,
+                                                                      MeanSquareFeature, MeanSquareFrequencyFeature,
+                                                                      PeakPeakFeature, RmsFeature, RmsFrequencyFeature,
+                                                                      RoughnessFeature, SampleRateFeatureConfig,
+                                                                      ShapeFactorFeature, SharpnessFeature,
+                                                                      SkewnessFeature, SpectralCentroidFeature,
+                                                                      SpectralEntropyFeature, SpeedRpmConfig,
+                                                                      SpeedRpmFeature,
+                                                                      VarianceFeature)  # Config; Group A; Group B; Group C; Group D; Group E; Group F
 
 
 # ============================================================================

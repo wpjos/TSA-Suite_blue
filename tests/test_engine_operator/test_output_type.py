@@ -34,15 +34,8 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel
 
-from tsas.engine.operator.base import (
-    BaseOperator,
-    NumericOperator,
-    BiNumericOperator,
-)
-from tsas.engine.operator.evaluation.base import (
-    BaseMetricOperator,
-    BaseMetricConfig,
-)
+from tsas.engine.operator.base import (BaseOperator, BiNumericOperator, NumericOperator)
+from tsas.engine.operator.evaluation.base import (BaseMetricConfig, BaseMetricOperator)
 
 
 # ============================================================================
@@ -293,9 +286,9 @@ class TestNumericOperatorExtraction:
         # 应该是联合类型（Union 或 types.UnionType）
         origin = get_origin(output_type)
         is_union = (
-                origin is typing.Union
-                or (hasattr(__import__('types'), 'UnionType') and isinstance(output_type,
-                                                                             __import__('types').UnionType))
+            origin is typing.Union
+            or (hasattr(__import__('types'), 'UnionType') and isinstance(output_type,
+                                                                         __import__('types').UnionType))
         )
         assert is_union, f"_output_type 应该是联合类型，实际: {output_type}"
 
@@ -310,9 +303,9 @@ class TestNumericOperatorExtraction:
         output_type = _BiNumericOpSample._output_type
         origin = get_origin(output_type)
         is_union = (
-                origin is typing.Union
-                or (hasattr(__import__('types'), 'UnionType') and isinstance(output_type,
-                                                                             __import__('types').UnionType))
+            origin is typing.Union
+            or (hasattr(__import__('types'), 'UnionType') and isinstance(output_type,
+                                                                         __import__('types').UnionType))
         )
         assert is_union, f"_output_type 应该是联合类型，实际: {output_type}"
 
@@ -417,9 +410,9 @@ class TestAbstractIntermediateFiltering:
         if output_type is not None:
             origin = get_origin(output_type)
             is_union = (
-                    origin is typing.Union
-                    or (hasattr(__import__('types'), 'UnionType') and isinstance(output_type,
-                                                                                 __import__('types').UnionType))
+                origin is typing.Union
+                or (hasattr(__import__('types'), 'UnionType') and isinstance(output_type,
+                                                                             __import__('types').UnionType))
             )
             assert is_union or output_type is not None  # 至少有值
 
@@ -501,9 +494,9 @@ class TestRealOperatorsOutputType:
         output_type = KNNScorer._output_type
         origin = get_origin(output_type)
         is_union = (
-                origin is typing.Union
-                or (hasattr(__import__('types'), 'UnionType') and isinstance(output_type,
-                                                                             __import__('types').UnionType))
+            origin is typing.Union
+            or (hasattr(__import__('types'), 'UnionType') and isinstance(output_type,
+                                                                         __import__('types').UnionType))
         )
         assert is_union, f"KNNScorer._output_type 应该是联合类型，实际: {output_type}"
 
@@ -519,9 +512,9 @@ class TestRealOperatorsOutputType:
         output_type = KNNDetector._output_type
         origin = get_origin(output_type)
         is_union = (
-                origin is typing.Union
-                or (hasattr(__import__('types'), 'UnionType') and isinstance(output_type,
-                                                                             __import__('types').UnionType))
+            origin is typing.Union
+            or (hasattr(__import__('types'), 'UnionType') and isinstance(output_type,
+                                                                         __import__('types').UnionType))
         )
         assert is_union
 
@@ -537,9 +530,9 @@ class TestRealOperatorsOutputType:
         output_type = MeanPredictor._output_type
         origin = get_origin(output_type)
         is_union = (
-                origin is typing.Union
-                or (hasattr(__import__('types'), 'UnionType') and isinstance(output_type,
-                                                                             __import__('types').UnionType))
+            origin is typing.Union
+            or (hasattr(__import__('types'), 'UnionType') and isinstance(output_type,
+                                                                         __import__('types').UnionType))
         )
         assert is_union
 
@@ -621,8 +614,8 @@ class TestMultiLayerInheritance:
         output_type = KNNScorer._output_type
         origin = get_origin(output_type)
         is_union = (
-                origin is typing.Union
-                or (hasattr(__import__('types'), 'UnionType') and isinstance(output_type,
-                                                                             __import__('types').UnionType))
+            origin is typing.Union
+            or (hasattr(__import__('types'), 'UnionType') and isinstance(output_type,
+                                                                         __import__('types').UnionType))
         )
         assert is_union

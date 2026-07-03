@@ -11,7 +11,7 @@ MSE、RMSE、MAE、MAPE、SMAPE、MASE、DTW、R²。
 """
 
 import warnings
-from typing import Optional, Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd

@@ -56,7 +56,7 @@ import json
 from abc import ABCMeta, abstractmethod
 from collections.abc import Generator
 from pathlib import Path
-from typing import TypeVar, Generic, Any, ClassVar, Self, Union, Annotated, get_origin, get_args
+from typing import Annotated, Any, ClassVar, Generic, get_args, get_origin, Self, TypeVar, Union
 
 import numpy as np
 import pandas as pd
@@ -162,10 +162,10 @@ class BaseOperator(Generic[I, O, C, RP], metaclass=ABCMeta):
 
     @staticmethod
     def _extract_type_from_typevar(
-            cls,
-            base_class: type,
-            typevar: TypeVar,
-            _path: tuple = (),
+        cls,
+        base_class: type,
+        typevar: TypeVar,
+        _path: tuple = (),
     ) -> Any:
         """从多层泛型继承链中提取指定 TypeVar 对应的具体类型。
 
@@ -416,10 +416,10 @@ class BaseOperator(Generic[I, O, C, RP], metaclass=ABCMeta):
 
     @staticmethod
     def _validate_params(
-            param_name: str,
-            params_type: type[BaseModel] | None,
-            params: BaseModel | None,
-            **kwargs
+        param_name: str,
+        params_type: type[BaseModel] | None,
+        params: BaseModel | None,
+        **kwargs
     ) -> BaseModel | None:
         """
         通用参数校验方法
@@ -1226,10 +1226,10 @@ class _NumericOperatorMixin(metaclass=ABCMeta):
         return meta.index
 
     def _validate_and_wrap_output(
-            self,
-            output_data: np.ndarray | tuple[np.ndarray, BaseModel],
-            meta: DataFrameMeta | None,
-            params: RP | None,
+        self,
+        output_data: np.ndarray | tuple[np.ndarray, BaseModel],
+        meta: DataFrameMeta | None,
+        params: RP | None,
     ) -> NumericData | tuple[NumericData, BaseModel]:
         """校验 ``_run_data`` 的输出并打包为 NumericData。
 
@@ -1482,7 +1482,7 @@ class BiNumericOperator(_NumericOperatorMixin,
     @abstractmethod
     def _run_data(self, x_real: np.ndarray, x_pred: np.ndarray, params: RP | None,
                   real_idx: pd.Index | None = None, pred_idx: pd.Index | None = None) -> (
-            np.ndarray | tuple[np.ndarray, EO]):
+        np.ndarray | tuple[np.ndarray, EO]):
         """子类实现的核心计算逻辑（双输入）
 
         接收预处理后的 x_real 和 x_pred ndarray，执行实际比较计算并返回结果。
@@ -1558,7 +1558,7 @@ class BatchRunNumericOperatorMixin(metaclass=ABCMeta):
 
     @abstractmethod
     def _iter_batch_results(
-            self, x: np.ndarray, params: RP | None, idx: pd.Index | None,
+        self, x: np.ndarray, params: RP | None, idx: pd.Index | None,
     ) -> Generator[
         tuple[pd.Index | np.ndarray, np.ndarray | tuple[np.ndarray, BaseModel]],
         None, None,
@@ -1588,9 +1588,9 @@ class BatchRunNumericOperatorMixin(metaclass=ABCMeta):
 
     @abstractmethod
     def _merge_batch_results(
-            self,
-            batch_results: list[tuple[pd.Index | np.ndarray, np.ndarray | tuple[np.ndarray, BaseModel]]],
-            params: RP | None,
+        self,
+        batch_results: list[tuple[pd.Index | np.ndarray, np.ndarray | tuple[np.ndarray, BaseModel]]],
+        params: RP | None,
     ) -> np.ndarray | tuple[np.ndarray, BaseModel]:
         """子类实现：合并所有批次结果为 ``_run_data`` 格式的返回值
 
@@ -1608,7 +1608,7 @@ class BatchRunNumericOperatorMixin(metaclass=ABCMeta):
         ...
 
     def _run_data(
-            self, x: np.ndarray, params: RP | None, idx: pd.Index | None = None,
+        self, x: np.ndarray, params: RP | None, idx: pd.Index | None = None,
     ) -> np.ndarray | tuple[np.ndarray, BaseModel]:
         """收集所有批次并合并 — 供 ``NumericOperator._run`` 管线调用
 
@@ -1628,7 +1628,7 @@ class BatchRunNumericOperatorMixin(metaclass=ABCMeta):
         return self._merge_batch_results(results, params)
 
     def batch_run(
-            self, x: NumericData, *, params: RP | None = None, **kwargs,
+        self, x: NumericData, *, params: RP | None = None, **kwargs,
     ) -> Generator[NumericData | tuple[NumericData, BaseModel], None, None]:
         """分批推理公共接口
 
@@ -1719,11 +1719,11 @@ class SupervisedNumericOperatorMixin(LearnableOperatorMixin[NumericData, Numeric
         """
         # 验证 x
         if not (isinstance(x, pd.DataFrame) or (
-                isinstance(x, np.ndarray) and issubclass(x.dtype.type, (np.integer, np.floating)))):
+            isinstance(x, np.ndarray) and issubclass(x.dtype.type, (np.integer, np.floating)))):
             raise TypeError(f"输入数据类型必须是 pd.DataFrame 或 np.ndarray，但当前是 {type(x)}")
         # 验证 y
         if not (isinstance(y, pd.DataFrame) or (
-                isinstance(y, np.ndarray) and issubclass(y.dtype.type, (np.integer, np.floating)))):
+            isinstance(y, np.ndarray) and issubclass(y.dtype.type, (np.integer, np.floating)))):
             raise TypeError(f"输入数据类型必须是 pd.DataFrame 或 np.ndarray，但当前是 {type(y)}")
 
     def _filter_fit_data(self, x: NumericData, y: NumericData, params: FP | None) -> tuple[NumericData, NumericData]:
@@ -1859,7 +1859,7 @@ class UnsupervisedNumericOperatorMixin(LearnableOperatorMixin[NumericData, None,
             TypeError: 输入数据类型不合法时
         """
         if not (isinstance(x, pd.DataFrame) or (
-                isinstance(x, np.ndarray) and issubclass(x.dtype.type, (np.integer, np.floating)))):
+            isinstance(x, np.ndarray) and issubclass(x.dtype.type, (np.integer, np.floating)))):
             raise TypeError(f"输入数据类型必须是 pd.DataFrame 或 np.ndarray，但当前是 {type(x)}")
 
     def _filter_fit_data(self, x: NumericData, params: FP | None) -> NumericData:

@@ -48,18 +48,14 @@ from __future__ import annotations
 import enum
 import inspect
 from dataclasses import dataclass
-from typing import Any, Literal, get_args, get_origin
+from typing import Any, get_args, get_origin, Literal
 
 from annotated_types import Ge, Gt, Le, Lt
 from pydantic import BaseModel
 from pydantic.fields import PydanticUndefined
 
 from tsas.engine.operator.base import BaseOperator
-from tsas.engine.operator.detection.base import (
-    BaseDetector,
-    BasePredictorMixin,
-    BaseDeciderMixin,
-)
+from tsas.engine.operator.detection.base import (BaseDeciderMixin, BasePredictorMixin)
 
 __all__ = [
     'SearchHint',
@@ -334,7 +330,6 @@ def config_to_optuna_suggestions(
             detector = KNNDetector(**params)
             ...
     """
-    import optuna  # 延迟导入，避免非HPO场景下的依赖
 
     if params is None:
         param_names = list(search_space.keys())

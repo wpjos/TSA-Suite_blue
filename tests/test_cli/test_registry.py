@@ -292,6 +292,7 @@ class TestOperatorRegistryRegister:
         输入：注册一个没有 name 方法的普通类
         预期：抛出 ValueError
         """
+
         class _NoNameClass:
             pass
 

@@ -19,13 +19,8 @@ import numpy as np
 import pytest
 from pandas import DataFrame
 
-from tsas.engine.operator.detection.knn import (
-    KNNScorer,
-    KNNDetector,
-    KNNDistanceMetric,
-    KNNScoreMethod,
-    KNNScorerExtraOutput,
-)
+from tsas.engine.operator.detection.knn import (KNNDetector, KNNDistanceMetric, KNNScoreMethod, KNNScorer,
+                                                KNNScorerExtraOutput)
 
 
 # ============================================================================

@@ -56,7 +56,7 @@ src/tsas/engine/hpo/
 
 | 层级 | 基类 / Mixin                                                   | 是否可训练 | 你需要做什么                               |
 |----|--------------------------------------------------------------|-------|--------------------------------------|
-| 1  | `BasePredictorMixin` + `NumericOperator`                       | ✅     | 实现 `_fit_data` / `_run_data`，输出预测值   |
+| 1  | `BasePredictorMixin` + `NumericOperator`                     | ✅     | 实现 `_fit_data` / `_run_data`，输出预测值   |
 | 2  | `SingleScorerMixin` / `MultiScorerMixin` + `NumericOperator` | ✅     | 实现 `_fit_data` / `_run_data`，输出异常分数  |
 | 3  | `BaseDeciderMixin` + `NumericOperator`                       | 可选    | 实现 `_fit_data` / `_run_data`，分数 → 标签 |
 | 4  | Detector                                                     | ✅     | 组合 Scorer + Decider（内部持有子组件实例）       |
@@ -72,7 +72,7 @@ src/tsas/engine/hpo/
 | `SingleScorerMixin`                | 单分数输出（列名 `["score"]`）  |
 | `MultiScorerMixin`                 | 多变量分数输出（列名继承输入）        |
 | `NumericBatchRunMixin`             | 批量推理生成器能力（`batch_run`） |
-| `BasePredictorMixin`              | 预测器输出（列名继承输入）        |
+| `BasePredictorMixin`               | 预测器输出（列名继承输入）          |
 | `BaseDeciderMixin`                 | 决策器输出（列名 `["label"]`）  |
 | `NumericOperator`                  | 单输入算子基类                |
 | `BiNumericOperator`                | 双输入算子基类（tuple 输入）      |
@@ -635,6 +635,7 @@ else:
 **叶节点算子**（如 ZScoreScorer、KNNScorer、PCAPredictor、PercentileDecider）：覆写钩子方法直接保存自有状态（如 `np.savez` 保存 numpy 数组，`pickle` 保存 sklearn 对象）。
 
 **组合算子**（如 KNNDetector、PCADetector）：覆写钩子方法，通过子目录分发调用子组件的 `save()` / `load()`：
+
 ```python
 def _save_fit_state(self, path):
     super()._save_fit_state(path)

@@ -40,7 +40,7 @@ import inspect
 import re
 import types
 import typing
-from typing import Literal, get_args, get_origin
+from typing import get_args, get_origin, Literal
 
 import numpy as np
 import pandas as pd
@@ -742,8 +742,8 @@ def _format_type_full(annotation) -> str:
 
     # 处理 Union（typing.Union 或 Python 3.10+ 的 types.UnionType）
     is_union = (
-            origin is typing.Union
-            or (hasattr(types, 'UnionType') and isinstance(annotation, types.UnionType))
+        origin is typing.Union
+        or (hasattr(types, 'UnionType') and isinstance(annotation, types.UnionType))
     )
     if is_union:
         parts = [_format_type_full(arg) for arg in get_args(annotation)]
@@ -843,8 +843,8 @@ def _simplify_output_type(output_type):
 
     origin = get_origin(output_type)
     is_union = (
-            origin is typing.Union
-            or (hasattr(types, 'UnionType') and isinstance(output_type, types.UnionType))
+        origin is typing.Union
+        or (hasattr(types, 'UnionType') and isinstance(output_type, types.UnionType))
     )
 
     # 非 Union，原样返回

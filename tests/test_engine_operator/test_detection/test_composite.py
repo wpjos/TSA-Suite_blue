@@ -24,14 +24,9 @@ import numpy as np
 import pytest
 from pandas import DataFrame
 
-from tsas.engine.operator.detection.composite import (
-    CompositeScorer,
-    CompositeScorerExtraOutput,
-    CompositeDetector,
-    CompositeDetectorExtraOutput,
-    _ensure_2d,
-    _extract_main_output,
-)
+from tsas.engine.operator.detection.composite import (_ensure_2d, _extract_main_output, CompositeDetector,
+                                                      CompositeDetectorExtraOutput, CompositeScorer,
+                                                      CompositeScorerExtraOutput)
 from tsas.engine.operator.detection.knn import KNNScorer
 from tsas.engine.operator.detection.mean_merge_scorer import MeanMergeScorer
 from tsas.engine.operator.detection.mean_predictor import MeanPredictor

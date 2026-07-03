@@ -27,19 +27,10 @@ from tsas.engine.operator.feature.construction.base import (
     Alignment,
     Padding,
 )
-from tsas.engine.operator.feature.construction.simple_feature import (
-    SquareConfig,
-    SquareFeature,
-    PolynomialConfig,
-    PolynomialFeature,
-    RollingMeanConfig,
-    RollingMeanFeature,
-    ColumnMedianConfig,
-    ColumnMedianFeature,
-    PCAConfig,
-    PCAState,
-    PCAFeature,
-)
+from tsas.engine.operator.feature.construction.simple_feature import (ColumnMedianConfig, ColumnMedianFeature,
+                                                                      PCAConfig, PCAFeature, PCAState, PolynomialConfig,
+                                                                      PolynomialFeature, RollingMeanConfig,
+                                                                      RollingMeanFeature, SquareConfig, SquareFeature)
 
 
 # ============================================================================

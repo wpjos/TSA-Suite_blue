@@ -20,26 +20,17 @@
 - UnsupervisedNumericOperatorMixin 模板管线
 """
 
-import tempfile
-from pathlib import Path
 from typing import TypeVar
 
 import numpy as np
 import pandas as pd
 import pytest
 from loguru import logger
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
-from tsas.engine.operator.base import (
-    BaseOperator,
-    LearnableOperatorMixin,
-    NumericOperator,
-    BiNumericOperator,
-    SupervisedNumericOperatorMixin,
-    UnsupervisedNumericOperatorMixin,
-    NumericData,
-    DataFrameMeta,
-)
+from tsas.engine.operator.base import (BaseOperator, BiNumericOperator, DataFrameMeta, LearnableOperatorMixin,
+                                       NumericOperator, SupervisedNumericOperatorMixin,
+                                       UnsupervisedNumericOperatorMixin)
 
 
 @pytest.fixture
