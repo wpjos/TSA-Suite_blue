@@ -101,8 +101,11 @@ class OperatorRegistry:
 
         重复调用时会增量合并，不会清空已有注册。
 
+        当某个子模块因 ``ImportError``（通常为缺失第三方依赖）无法导入时，
+        该模块会被跳过并记录 warning 日志，但不影响其他模块的正常扫描注册。
+
         Raises:
-            ImportError: 扫描的包路径不存在或无法导入时
+            ImportError: 顶层包路径不存在或无法导入时
         """
         for package_path in self._scan_packages:
             # 导入顶层包
@@ -120,8 +123,13 @@ class OperatorRegistry:
             ):
                 try:
                     module = importlib.import_module(modname)
-                except ImportError:
-                    # 跳过无法导入的模块（可能有缺失依赖）
+                except ImportError as e:
+                    # 模块导入失败（通常因缺失第三方依赖），记录 warning 日志后跳过。
+                    # 不记录日志会导致算子静默消失，用户无法定位原因。
+                    logger.warning(
+                        f"模块 '{modname}' 导入失败，已跳过该模块中的算子注册。"
+                        f"原因: {e}"
+                    )
                     continue
                 self._scan_module(module)
 

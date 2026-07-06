@@ -575,11 +575,13 @@ class TestDiscoverEdgeCases:
         # io.py 中不含 BaseOperator 子类，注册表应为空
         assert len(registry.list_all()) == 0
 
-    def test_discover_import_error_skips_module(self):
+    def test_discover_import_error_skips_module_with_warning(self, loguru_capture):
         """
-        目的：验证 walk_packages 过程中 import 失败的模块被静默跳过
-        输入：扫描 detection 包，但 mock importlib.import_module 对特定子模块抛 ImportError
-        预期：discover 不崩溃，其他正常模块仍被注册
+        目的：验证 walk_packages 过程中 import 失败的模块被跳过，并记录 warning 日志
+        输入：扫描 detection 包，但 mock importlib.import_module 对 cicada 子模块抛 ImportError
+        预期：
+            - discover 不崩溃，其他正常模块仍被注册
+            - 日志中包含 warning 级别的跳过记录，且消息包含模块名和导入失败原因
         """
         import importlib
         from unittest.mock import patch
@@ -608,6 +610,57 @@ class TestDiscoverEdgeCases:
         # 其他算子仍存在
         assert 'knn_scorer' in operators
         assert 'threshold_decider' in operators
+
+        # 验证 warning 日志：应包含被跳过的模块名和失败原因
+        warning_messages = [
+            m for m in loguru_capture
+            if 'tsas.engine.operator.detection.cicada' in m
+               and '导入失败' in m
+               and 'mocked missing dependency' in m
+        ]
+        assert len(warning_messages) >= 1, (
+            "ImportError 跳过模块时应记录包含模块名和失败原因的 warning 日志"
+        )
+
+    def test_discover_multiple_import_errors_each_logged(self, loguru_capture):
+        """
+        目的：验证多个模块同时 ImportError 时，每个失败模块都各自记录一条 warning 日志
+        输入：扫描 detection 包，mock importlib.import_module 对 cicada 和 xihe 两个子模块抛 ImportError
+        预期：
+            - 两个被阻拦的模块各自都有一条 warning 日志
+            - 其他正常模块仍被注册
+        """
+        import importlib
+        from unittest.mock import patch
+
+        registry = OperatorRegistry(
+            base_class=BaseOperator,
+            scan_packages=['tsas.engine.operator.detection'],
+        )
+
+        real_import = importlib.import_module
+        blocked = {
+            'tsas.engine.operator.detection.cicada',
+            'tsas.engine.operator.detection.xihe',
+        }
+
+        def mock_import(name, *args, **kwargs):
+            if name in blocked:
+                raise ImportError(f"mocked: {name} missing")
+            return real_import(name, *args, **kwargs)
+
+        with patch('importlib.import_module', side_effect=mock_import):
+            registry.discover()
+
+        # 验证两个被阻拦模块各自都有一条 warning 日志
+        for blocked_mod in blocked:
+            matched = [
+                m for m in loguru_capture
+                if blocked_mod in m and '导入失败' in m
+            ]
+            assert len(matched) >= 1, (
+                f"模块 '{blocked_mod}' 跳过时应记录一条 warning 日志"
+            )
 
     def test_scan_module_class_name_call_raises(self):
         """
