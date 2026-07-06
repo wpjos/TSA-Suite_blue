@@ -106,6 +106,17 @@ class TestForecastingHelp:
         captured = capsys.readouterr()
         assert "itransformer_forecaster" in captured.out
 
+    def test_help_list_excludes_aliases(self, capsys):
+        """
+        目的：验证 help 列表不展示算子别名
+        输入：['help']
+        预期：输出不包含 *_mimo_forecaster 别名
+        """
+        main(['help'])
+        captured = capsys.readouterr()
+        assert "lightgbm_mimo_forecaster" not in captured.out
+        assert "xgboost_mimo_forecaster" not in captured.out
+
     def test_help_detail(self, capsys):
         """
         目的：验证 help 带算子名称时输出详情
@@ -194,6 +205,129 @@ class TestForecastingFitAndRun:
         assert pred.shape[1] == 1
 
 
+class TestForecastingRunOptions:
+    """测试 forecasting run 子命令的附加选项"""
+
+    @pytest.fixture
+    def lightgbm_window_csv(self, tmp_path):
+        """创建推理窗口 CSV 数据文件"""
+        np.random.seed(123)
+        data = np.cumsum(np.random.randn(48, 3), axis=0)
+        df = pd.DataFrame(data, columns=['feat_0', 'feat_1', 'target'])
+        path = tmp_path / "lgb_window.csv"
+        df.to_csv(path, index=False)
+        return path
+
+    @pytest.fixture
+    def lightgbm_config(self, tmp_path):
+        """创建 LightGBM 预测算子配置文件"""
+        config = {
+            "operator": {
+                "name": "lightgbm_forecaster",
+                "input_columns": ["feat_0", "feat_1", "target"],
+                "target_column": "target",
+                "config": {
+                    "seq_len": 48,
+                    "pred_len": 12,
+                    "n_estimators": 10,
+                },
+            }
+        }
+        config_path = tmp_path / "lgb_config.json"
+        with open(config_path, 'w') as f:
+            json.dump(config, f)
+        return config_path
+
+    def test_run_with_keep_input(
+        self, lightgbm_window_csv, lightgbm_config, tmp_path, capsys,
+    ):
+        """
+        目的：验证 --keep-input 选项拼接原始输入列和预测结果列
+        输入：推理窗口、LightGBM 配置 + --keep-input flag（mock 已训练模型输出）
+        预期：输出包含原始输入列和预测结果列
+        """
+        from unittest.mock import patch
+
+        output_path = tmp_path / "pred.csv"
+
+        with patch(
+            'tsas.engine.operator.forecasting.lightgbm.LightGBMForecaster.run',
+            return_value=np.arange(12).reshape(12, 1),
+        ):
+            main([
+                'run',
+                '--input', str(lightgbm_window_csv),
+                '--config', str(lightgbm_config),
+                '--output', str(output_path),
+                '--keep-input',
+            ])
+
+        captured = capsys.readouterr()
+        assert "预测完成" in captured.out
+
+        pred = pd.read_csv(output_path)
+        # 原始 3 列 + 预测结果列
+        assert pred.shape[1] == 4
+        assert 'feat_0' in pred.columns
+        assert 'feat_1' in pred.columns
+        assert 'target' in pred.columns
+
+    def test_run_unfitted_learnable_shows_guidance(
+        self, lightgbm_window_csv, lightgbm_config, tmp_path, capsys,
+    ):
+        """
+        目的：验证可训练算子未 fit 时 run 输出友好的 fit→run 命令引导
+        输入：LightGBM 配置，未执行 fit，直接 run
+        预期：SystemExit(1)，输出包含 "需要先训练"、"forecasting fit"、"--load" 等引导信息
+        """
+        from unittest.mock import patch
+
+        output_path = tmp_path / "pred.csv"
+        with patch(
+            'tsas.engine.operator.forecasting.lightgbm.LightGBMForecaster.run',
+            side_effect=RuntimeError("模型尚未训练，无法执行推理"),
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                main([
+                    'run',
+                    '--input', str(lightgbm_window_csv),
+                    '--config', str(lightgbm_config),
+                    '--output', str(output_path),
+                ])
+
+        assert exc_info.value.code == 1
+
+        captured = capsys.readouterr()
+        assert "需要先训练" in captured.out
+        assert "forecasting fit" in captured.out
+        assert "--save model_dir/" in captured.out
+        assert "--load model_dir/" in captured.out
+        assert "forecasting run" in captured.out
+
+    def test_run_other_runtime_error_propagates(
+        self, lightgbm_window_csv, lightgbm_config, tmp_path,
+    ):
+        """
+        目的：验证非未训练相关的 RuntimeError 正常传播，不被拦截
+        输入：LightGBM 配置，mock 其 run 方法抛出其他 RuntimeError
+        预期：RuntimeError 正常传播，不被 SystemExit 拦截
+        """
+        from unittest.mock import patch
+
+        output_path = tmp_path / "pred.csv"
+        with patch(
+            'tsas.engine.operator.forecasting.lightgbm.LightGBMForecaster.run',
+            side_effect=RuntimeError("其他运行时错误"),
+        ):
+            with pytest.raises(RuntimeError, match="其他运行时错误"):
+                main([
+                    'run',
+                    '--input', str(lightgbm_window_csv),
+                    '--config', str(lightgbm_config),
+                    '--output', str(output_path),
+                ])
+
+
 class TestForecastingConfigErrors:
     """测试预测算子配置错误场景"""
 
@@ -254,3 +388,14 @@ class TestCreateForecastingRegistry:
         assert registry.discovered is True
         operators = registry.list_all()
         assert 'itransformer_forecaster' in operators
+
+    def test_registry_excludes_aliases(self):
+        """
+        目的：验证注册中心不包含算子别名
+        输入：无
+        预期：列表中不包含 *_mimo_forecaster 别名
+        """
+        registry = create_registry()
+        operators = registry.list_all()
+        assert 'lightgbm_mimo_forecaster' not in operators
+        assert 'xgboost_mimo_forecaster' not in operators
