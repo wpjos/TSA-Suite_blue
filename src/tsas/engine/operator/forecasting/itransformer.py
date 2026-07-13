@@ -45,43 +45,58 @@ class ITransformerForecasterConfig(BaseModel):
     """
 
     # ---- 模型结构参数 ----
-    seq_len: int = Field(default=100, ge=8, le=2000, description="输入历史窗口长度")
-    pred_len: int = Field(default=20, ge=1, le=500, description="预测未来步长")
-    d_model: int = Field(default=128, ge=16, le=1024, description="模型嵌入维度")
-    nhead: int = Field(default=4, ge=1, le=16, description="注意力头数")
-    num_layers: int = Field(default=2, ge=1, le=12, description="Encoder 层数")
-    dim_feedforward: Optional[int] = Field(default=None, ge=16, le=4096,
+    seq_len: int = Field(default=100, ge=100, le=300, description="输入历史窗口长度")
+    pred_len: int = Field(default=30, ge=30, le=80, description="预测未来步长")
+    d_model: int = Field(default=256, ge=128, le=1024, description="模型嵌入维度")
+    nhead: int = Field(default=4, ge=2, le=16, description="注意力头数")
+    num_layers: int = Field(default=2, ge=1, le=8, description="Encoder 层数")
+    dim_feedforward: Optional[int] = Field(default=512, ge=256, le=2048,
                                            description="FFN 隐藏层维度，None 时取 2*d_model")
-    dropout: float = Field(default=0.2, ge=0.0, le=0.8, description="Dropout 比率")
+    dropout: float = Field(default=0.2, ge=0.1, le=0.8, description="Dropout 比率")
     step_cond_head: bool = Field(default=False, description="是否使用步长条件预测头")
     lag_aware: bool = Field(default=True, description="是否启用 Lag-Aware Refiner")
-    lag_max: int = Field(default=16, ge=0, le=128, description="最大滞后步数")
-    lag_bias_scale: float = Field(default=2.0, ge=0.0, le=10.0, description="互相关先验偏置缩放")
-    lag_dropout: float = Field(default=0.1, ge=0.0, le=0.8, description="Lag Refiner Dropout")
-    kan_grid_size: int = Field(default=5, ge=1, le=20, description="KAN 网格大小")
-    target_idx: int = Field(default=-1, ge=-1, le=10000,
+    lag_max: int = Field(default=16, ge=8, le=64, description="最大滞后步数")
+    lag_bias_scale: float = Field(default=2.0, ge=1.0, le=8.0, description="互相关先验偏置缩放")
+    lag_dropout: float = Field(default=0.2, ge=0.1, le=0.8, description="Lag Refiner Dropout")
+    kan_grid_size: int = Field(default=5, ge=2, le=20, description="KAN 网格大小")
+    target_idx: int = Field(default=-1, ge=-1, le=-1,
                             description="目标变量在特征中的列索引，-1 表示最后一列")
 
     # ---- 训练参数 ----
-    epochs: int = Field(default=30, ge=1, le=1000, description="最大训练轮数")
-    batch_size: int = Field(default=128, ge=1, le=2048, description="训练批次大小")
-    lr: float = Field(default=0.001, ge=1e-6, le=1e-1, description="学习率")
-    weight_decay: float = Field(default=1e-5, ge=0.0, le=1e-1, description="权重衰减")
-    early_stop_patience: int = Field(default=12, ge=1, le=100, description="早停耐心轮数")
-    train_ratio: float = Field(default=0.7, ge=0.1, le=0.9, description="训练集占比")
-    val_ratio: float = Field(default=0.15, ge=0.05, le=0.45, description="验证集占剩余数据比例")
-    trend_weight: float = Field(default=1.0, ge=0.0, le=10.0, description="趋势损失权重")
-    time_weight_start: float = Field(default=0.1, ge=0.0, le=1.0, description="时间加权损失起始权重")
-    time_weight_end: float = Field(default=1.0, ge=0.0, le=1.0, description="时间加权损失结束权重")
-    max_grad_norm: float = Field(default=1.0, ge=0.1, le=10.0, description="梯度裁剪范数")
-    scheduler_factor: float = Field(default=0.5, ge=0.1, le=0.9, description="学习率衰减因子")
-    scheduler_patience: int = Field(default=3, ge=1, le=20, description="学习率衰减耐心轮数")
+    epochs: int = Field(default=30, ge=15, le=120, description="最大训练轮数")
+    batch_size: int = Field(default=128, ge=64, le=512, description="训练批次大小")
+    lr: float = Field(default=0.0002, ge=0.0001, le=0.0008, description="学习率")
+    weight_decay: float = Field(default=1e-5, ge=5e-6, le=4e-5, description="权重衰减")
+    early_stop_patience: int = Field(default=12, ge=6, le=48, description="早停耐心轮数")
+    train_ratio: float = Field(default=0.7, ge=0.7, le=0.7, description="训练集占比")
+    val_ratio: float = Field(default=0.15, ge=0.15, le=0.15, description="验证集占剩余数据比例")
+    trend_weight: float = Field(default=1.0, ge=0.5, le=4.0, description="趋势损失权重")
+    time_weight_start: float = Field(default=0.1, ge=0.05, le=0.4, description="时间加权损失起始权重")
+    time_weight_end: float = Field(default=1.0, ge=0.5, le=4.0, description="时间加权损失结束权重")
+    max_grad_norm: float = Field(default=1.0, ge=0.5, le=4.0, description="梯度裁剪范数")
+    scheduler_factor: float = Field(default=0.5, ge=0.25, le=2.0, description="学习率衰减因子")
+    scheduler_patience: int = Field(default=3, ge=1, le=12, description="学习率衰减耐心轮数")
 
     # ---- 运行参数 ----
     device: Literal['auto', 'cpu', 'cuda', 'npu'] = Field(default='auto', description="计算设备（auto/cpu/cuda/npu）")
 
     class Config:
         extra = 'forbid'
+
+
+def _get_valid_indices(chunk_ids: np.ndarray, input_len: int, output_len: int) -> np.ndarray:
+    """返回在每个连续 chunk 内可完整构成 (input_len, output_len) 窗口的起始索引。
+
+    与 train_new.py 中的 get_valid_indices 保持逻辑一致。
+    """
+    valid_indices = []
+    for cid in np.unique(chunk_ids):
+        mask = chunk_ids == cid
+        chunk_row_indices = np.where(mask)[0]
+        num_samples = len(chunk_row_indices) - input_len - output_len + 1
+        if num_samples > 0:
+            valid_indices.extend(chunk_row_indices[:num_samples].tolist())
+    return np.array(valid_indices, dtype=int)
 
 
 class _TimeSeriesDataset(Dataset):
@@ -116,6 +131,10 @@ None]):
     """iTransformer 工业时序预测算子。
 
     训练阶段学习标准化残差；推理阶段输出物理量预测。
+
+    若时间序列存在断层（chunk_ids），可在 fit 前调用
+    ``set_chunk_ids(chunk_ids)``，此时样本窗口不会跨越断层，
+    且 scaler 仅在训练样本精确覆盖范围内拟合。
 
     输入输出约定::
 
@@ -153,6 +172,19 @@ None]):
         self._num_features: int | None = None
         self._num_targets: int | None = None
         self._device: torch.device = self._resolve_device()
+        self._chunk_ids: np.ndarray | None = None
+
+    def set_chunk_ids(self, chunk_ids: np.ndarray | None) -> None:
+        """设置时间连续段标识，用于构造不跨越断层的样本窗口。
+
+        ``chunk_ids`` 应与 ``fit(x, y)`` 中的 ``x`` / ``y`` 行对齐。
+        若传入 ``None``，则回退到原有行为（可能跨越时间断层）。
+        """
+        if chunk_ids is not None:
+            chunk_ids = np.asarray(chunk_ids)
+            if chunk_ids.ndim != 1:
+                raise ValueError(f"chunk_ids 必须是 1-D 数组，当前维度 {chunk_ids.ndim}")
+        self._chunk_ids = chunk_ids
 
     def _resolve_device(self) -> torch.device:
         cfg = self.config
@@ -201,7 +233,11 @@ None]):
         return model.to(self._device)
 
     def _make_datasets(self, x: np.ndarray, y: np.ndarray):
-        """从完整时间序列构造训练、验证数据集与索引。"""
+        """从完整时间序列构造训练、验证数据集与索引。
+
+        若 ``self._chunk_ids`` 已设置，则窗口起始索引不会跨越时间断层；
+        否则按原有逻辑从整个序列中连续采样。
+        """
         cfg = self.config
         n_total = len(x)
         n_samples = n_total - cfg.seq_len - cfg.pred_len + 1
@@ -210,7 +246,20 @@ None]):
                 f"时间序列长度 {n_total} 不足以构造窗口 "
                 f"(seq_len={cfg.seq_len}, pred_len={cfg.pred_len})"
             )
-        all_indices = np.arange(n_samples)
+
+        if self._chunk_ids is not None:
+            if len(self._chunk_ids) != n_total:
+                raise ValueError(
+                    f"chunk_ids 长度 {len(self._chunk_ids)} 与 x 长度 {n_total} 不一致"
+                )
+            all_indices = _get_valid_indices(self._chunk_ids, cfg.seq_len, cfg.pred_len)
+            if len(all_indices) == 0:
+                raise ValueError(
+                    f"没有可用样本：所有 chunk 的长度都小于 "
+                    f"seq_len + pred_len = {cfg.seq_len + cfg.pred_len}"
+                )
+        else:
+            all_indices = np.arange(n_samples)
 
         # 按时间顺序划分：训练 / 验证 / 测试（测试仅保留，不使用）
         idx_train, idx_temp = train_test_split(
@@ -223,7 +272,7 @@ None]):
 
         train_ds = _TimeSeriesDataset(x, y, idx_train, cfg.seq_len, cfg.pred_len)
         val_ds = _TimeSeriesDataset(x, y, idx_val, cfg.seq_len, cfg.pred_len)
-        return train_ds, val_ds
+        return train_ds, val_ds, idx_train, idx_val
 
     def _fit_data(self, x: np.ndarray, y: np.ndarray, *, params: None) -> None:
         cfg = self.config
@@ -231,24 +280,28 @@ None]):
         self._num_targets = y.shape[1]
         self._target_idx = self._resolve_target_idx(self._num_features)
 
-        # 1. 标准化（仅使用训练数据拟合，避免泄漏）
         if y.shape[1] != 1:
             raise ValueError(
                 f"ITransformerForecaster 当前仅支持单目标预测，y 列数应为 1，"
                 f"但当前为 {y.shape[1]}"
             )
-        max_train = int(len(x) * cfg.train_ratio)
+
+        # 1. 先按 chunk 边界划分训练/验证索引（此时数据尚未缩放）
+        _, _, idx_train, _ = self._make_datasets(x, y)
+
+        # 2. 标准化：仅使用训练样本覆盖到的精确范围拟合 scaler，避免泄漏
+        max_train_row = int(idx_train[-1]) + cfg.seq_len + cfg.pred_len
         self._scaler = StandardScaler()
-        self._scaler.fit(x[:max_train])
+        self._scaler.fit(x[:max_train_row])
         x_scaled = self._scaler.transform(x)
         y_scaled = x_scaled[:, [self._target_idx]]
 
-        # 2. 构造数据集
-        train_ds, val_ds = self._make_datasets(x_scaled, y_scaled)
+        # 3. 用缩放后的数据构造 DataLoader
+        train_ds, val_ds, _, _ = self._make_datasets(x_scaled, y_scaled)
         train_loader = DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True)
         val_loader = DataLoader(val_ds, batch_size=cfg.batch_size, shuffle=False)
 
-        # 3. 构建模型
+        # 4. 构建模型
         self._model = self._build_model()
         optimizer = torch.optim.Adam(
             self._model.parameters(), lr=cfg.lr * 0.2, weight_decay=cfg.weight_decay

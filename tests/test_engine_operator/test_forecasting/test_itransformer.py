@@ -249,3 +249,91 @@ class TestITransformerForecasterSaveLoad:
         assert (save_dir / "_scaler.npz").exists()
         assert (save_dir / "_forecaster_state.npz").exists()
         # 该算子未定义 FitParams，因此不会生成 last_fit_params.json
+
+
+# ============================================================================
+# chunk_ids 与 scaler 边界一致性测试
+# ============================================================================
+
+class TestITransformerForecasterChunkConsistency:
+    """验证与 train_new.py 的关键行为一致：chunk 边界与 scaler 拟合范围。"""
+
+    @pytest.fixture
+    def chunk_config(self):
+        """专门用于 chunk 一致性测试的小配置。"""
+        return ITransformerForecasterConfig(
+            seq_len=100,
+            pred_len=20,
+            d_model=32,
+            nhead=2,
+            num_layers=1,
+            dim_feedforward=64,
+            dropout=0.0,
+            lag_aware=False,
+            kan_grid_size=3,
+            target_idx=-1,
+            epochs=1,
+            batch_size=16,
+            lr=0.001,
+            early_stop_patience=5,
+            train_ratio=0.7,
+            val_ratio=0.15,
+            device="cpu",
+        )
+
+    @pytest.fixture
+    def chunk_data(self, chunk_config):
+        """构造两段被大 gap 隔开的数据，共 300 步。"""
+        cfg = chunk_config
+        np.random.seed(7)
+        # 第一段：0-149；第二段：150-299
+        x0 = np.cumsum(np.random.randn(150, 4), axis=0)
+        x1 = np.cumsum(np.random.randn(150, 4), axis=0) + 100.0
+        x = np.vstack([x0, x1]).astype(np.float32)
+        y = x[:, [-1]].copy()
+        chunk_ids = np.array([0] * 150 + [1] * 150, dtype=int)
+        return x, y, chunk_ids
+
+    def test_chunk_ids_respected(self, chunk_data, chunk_config):
+        """目的：传入 chunk_ids 后，训练/验证窗口不跨越时间断层。"""
+        x, y, chunk_ids = chunk_data
+        forecaster = ITransformerForecaster(config=chunk_config)
+        forecaster.set_chunk_ids(chunk_ids)
+        forecaster.fit(x, y)
+
+        cfg = chunk_config
+        _, _, idx_train, idx_val = forecaster._make_datasets(x, y)
+        for idx in np.concatenate([idx_train, idx_val]):
+            window_start = int(idx)
+            window_end = window_start + cfg.seq_len + cfg.pred_len
+            assert chunk_ids[window_start] == chunk_ids[window_end - 1], (
+                f"窗口 [{window_start}, {window_end}) 跨越了 chunk 边界"
+            )
+
+    def test_scaler_fit_boundary_matches_train_new(self, chunk_data, chunk_config):
+        """目的：scaler 仅在训练样本精确覆盖的行范围内拟合，而不是粗略的 0.7*len(x)。"""
+        x, y, chunk_ids = chunk_data
+        forecaster = ITransformerForecaster(config=chunk_config)
+        forecaster.set_chunk_ids(chunk_ids)
+        forecaster.fit(x, y)
+
+        cfg = chunk_config
+        _, _, idx_train, _ = forecaster._make_datasets(x, y)
+        max_train_row = int(idx_train[-1]) + cfg.seq_len + cfg.pred_len
+
+        expected_mean = x[:max_train_row].mean(axis=0)
+        np.testing.assert_allclose(forecaster._scaler.mean_, expected_mean, rtol=1e-6)
+
+        # 粗略边界 int(len(x) * 0.7) = 210，与精确边界不同
+        rough_boundary = int(len(x) * cfg.train_ratio)
+        assert max_train_row != rough_boundary, (
+            "测试数据应能区分精确边界与粗略边界；若相同请调整 fixture"
+        )
+
+    def test_without_chunk_ids_backward_compatible(self, chunk_data, chunk_config):
+        """目的：不传 chunk_ids 时保留原有连续采样行为（可能跨 chunk）。"""
+        x, y, _ = chunk_data
+        forecaster = ITransformerForecaster(config=chunk_config)
+        forecaster.fit(x, y)
+        assert forecaster._scaler is not None
+        assert forecaster.is_fitted
