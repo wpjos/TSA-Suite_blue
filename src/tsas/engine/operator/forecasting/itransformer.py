@@ -45,7 +45,7 @@ class ITransformerForecasterConfig(BaseModel):
     """
 
     # ---- 模型结构参数 ----
-    seq_len: int = Field(default=100, ge=100, le=300, description="输入历史窗口长度")
+    seq_len: int = Field(default=160, ge=100, le=300, description="输入历史窗口长度")
     pred_len: int = Field(default=30, ge=30, le=80, description="预测未来步长")
     d_model: int = Field(default=256, ge=128, le=1024, description="模型嵌入维度")
     nhead: int = Field(default=4, ge=2, le=16, description="注意力头数")
