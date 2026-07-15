@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 均值预测器单元测试
@@ -17,7 +16,6 @@ import pytest
 from pandas import DataFrame
 
 from tsas.engine.operator.detection.mean_predictor import MeanPredictor
-
 
 # ============================================================================
 # 公共测试数据

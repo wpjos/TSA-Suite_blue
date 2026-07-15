@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 KNN 异常检测算子单元测试
@@ -19,9 +18,13 @@ import numpy as np
 import pytest
 from pandas import DataFrame
 
-from tsas.engine.operator.detection.knn import (KNNDetector, KNNDistanceMetric, KNNScoreMethod, KNNScorer,
-                                                KNNScorerExtraOutput)
-
+from tsas.engine.operator.detection.knn import (
+    KNNDetector,
+    KNNDistanceMetric,
+    KNNScoreMethod,
+    KNNScorer,
+    KNNScorerExtraOutput,
+)
 
 # ============================================================================
 # 公共测试数据

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 PCA 异常检测算子单元测试
@@ -16,9 +15,14 @@ import numpy as np
 import pytest
 from pandas import DataFrame
 
-from tsas.engine.operator.detection.pca import (PCADetector, PCADetectorExtraOutput, PCAPredictor,
-                                                PCAPredictorExtraOutput, PCAScorer, PCAScorerExtraOutput)
-
+from tsas.engine.operator.detection.pca import (
+    PCADetector,
+    PCADetectorExtraOutput,
+    PCAPredictor,
+    PCAPredictorExtraOutput,
+    PCAScorer,
+    PCAScorerExtraOutput,
+)
 
 # ============================================================================
 # 公共测试数据

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Time-RCD 评分器单元测试
@@ -30,7 +29,6 @@ from tsas.engine.operator.detection.time_rcd import (
     TimeRCDScorerConfig,
     TimeRCDScorerRunParams,
 )
-
 
 # ============================================================================
 # 公共测试数据 / fixture

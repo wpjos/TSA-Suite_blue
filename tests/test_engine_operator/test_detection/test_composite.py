@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 组合异常检测算子单元测试
@@ -24,9 +23,14 @@ import numpy as np
 import pytest
 from pandas import DataFrame
 
-from tsas.engine.operator.detection.composite import (_ensure_2d, _extract_main_output, CompositeDetector,
-                                                      CompositeDetectorExtraOutput, CompositeScorer,
-                                                      CompositeScorerExtraOutput)
+from tsas.engine.operator.detection.composite import (
+    CompositeDetector,
+    CompositeDetectorExtraOutput,
+    CompositeScorer,
+    CompositeScorerExtraOutput,
+    _ensure_2d,
+    _extract_main_output,
+)
 from tsas.engine.operator.detection.knn import KNNScorer
 from tsas.engine.operator.detection.mean_merge_scorer import MeanMergeScorer
 from tsas.engine.operator.detection.mean_predictor import MeanPredictor
@@ -35,7 +39,6 @@ from tsas.engine.operator.detection.percentile_decider import PercentileDecider
 from tsas.engine.operator.detection.residual_scorer import ResidualScorer
 from tsas.engine.operator.detection.threshold_decider import ThresholdDecider
 from tsas.engine.operator.detection.zscore import ZScoreScorer
-
 
 # ============================================================================
 # 公共测试数据

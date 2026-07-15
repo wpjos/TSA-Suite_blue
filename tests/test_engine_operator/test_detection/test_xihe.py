@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 羲和 Gamma 评分器测试模块
@@ -25,9 +24,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tsas.engine.operator.detection.xihe import (_XIHE_WINDOW_SIZE, XiHeGammaScorer, XiHeGammaScorerConfig,
-                                                 XiHeGammaScorerExtraOutput)
-
+from tsas.engine.operator.detection.xihe import (
+    _XIHE_WINDOW_SIZE,
+    XiHeGammaScorer,
+    XiHeGammaScorerConfig,
+    XiHeGammaScorerExtraOutput,
+)
 
 # ============================================================================
 # Mock 工具

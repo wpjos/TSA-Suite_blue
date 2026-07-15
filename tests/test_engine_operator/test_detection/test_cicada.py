@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 CICADA 检测算子单元测试
@@ -30,7 +29,6 @@ from tsas.engine.operator.detection.cicada import (
     CICADAScorerConfig,
     CICADAScorerExtraOutput,
 )
-
 
 # ============================================================================
 # 公共测试数据
@@ -1012,7 +1010,7 @@ class TestCICADAScorerVsDecisionFunction:
 
         # 记录统计信息（通过 print 输出到测试报告）
         print(f"\n{'=' * 60}")
-        print(f"CICADAScorer vs CICADA.decision_function 分数对比")
+        print("CICADAScorer vs CICADA.decision_function 分数对比")
         print(f"{'=' * 60}")
         print(f"CICADAScorer  — mean: {scores.mean():.6f}, std: {scores.std():.6f}, "
               f"min: {scores.min():.6f}, max: {scores.max():.6f}")
