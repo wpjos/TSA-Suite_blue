@@ -32,6 +32,15 @@ hpo = [
 knn = [
     "scikit-learn",
 ]
+sklearn = [
+    "scikit-learn>=1.3",
+]
+pyod = [
+    "pyod>=2.0",
+]
+torch = [
+    "torch>=2.0",
+]
 lightgbm = [
     "lightgbm>=4.0",
 ]
@@ -39,7 +48,7 @@ xgboost = [
     "xgboost>=1.7.6",
 ]
 all = [
-    "tsa-suite[hpo,knn,lightgbm,xgboost]",
+    "tsa-suite[hpo,knn,sklearn,pyod,torch,lightgbm,xgboost]",
 ]
 
 [dependency-groups]
