@@ -65,7 +65,7 @@ class ITransformerForecasterConfig(BaseModel):
     # ---- 训练参数 ----
     epochs: int = Field(default=30, ge=15, le=120, description="最大训练轮数")
     batch_size: int = Field(default=128, ge=64, le=512, description="训练批次大小")
-    lr: float = Field(default=0.0002, ge=0.0001, le=0.0008, description="学习率")
+    lr: float = Field(default=0.001, ge=0.0005, le=0.004, description="学习率")
     weight_decay: float = Field(default=1e-5, ge=5e-6, le=4e-5, description="权重衰减")
     early_stop_patience: int = Field(default=12, ge=6, le=48, description="早停耐心轮数")
     train_ratio: float = Field(default=0.7, ge=0.7, le=0.7, description="训练集占比")
