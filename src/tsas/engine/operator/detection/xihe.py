@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 羲和 Gamma 时间序列异常检测评分器模块
@@ -61,8 +60,8 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader
-from tsas.basic.dataset.sliding_window import DataFrameSlidingWindowDataset
 
+from tsas.basic.dataset.sliding_window import DataFrameSlidingWindowDataset
 from tsas.engine.operator.base import (
     BatchRunNumericOperatorMixin,
     NumericOperator,

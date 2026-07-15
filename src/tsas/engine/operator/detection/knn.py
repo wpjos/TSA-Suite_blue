@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 KNN 异常检测算子
@@ -36,7 +35,7 @@ import pandas as pd
 from pydantic import BaseModel, Field
 
 from tsas.engine.operator.base import NumericOperator, UnsupervisedNumericOperatorMixin
-from tsas.engine.operator.detection.base import (BaseDeciderMixin, SingleScorerMixin)
+from tsas.engine.operator.detection.base import BaseDeciderMixin, SingleScorerMixin
 from tsas.engine.operator.detection.percentile_decider import (
     PercentileDecider,
     PercentileDeciderConfig,
@@ -89,6 +88,7 @@ class KNNScorerConfig(BaseModel):
         distance_metric (KNNDistanceMetric): 距离度量方式，euclidean 或 manhattan
         score_method (KNNScoreMethod): 分数合并方式，maximum/mean/median
     """
+    model_config = {"frozen": True}
     n_neighbors: int = Field(
         default=5, ge=1, le=20,
         description="近邻数量 K"
@@ -296,6 +296,7 @@ class KNNDetectorConfig(BaseModel):
         score_method (KNNScoreMethod): 分数合并方式
         percentile (float): 百分位阈值
     """
+    model_config = {"frozen": True}
     n_neighbors: int = Field(
         default=5, ge=1, le=20,
         description="近邻数量 K"

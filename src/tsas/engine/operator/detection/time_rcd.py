@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Time-RCD 零样本异常检测算子（Scorer / Predictor）

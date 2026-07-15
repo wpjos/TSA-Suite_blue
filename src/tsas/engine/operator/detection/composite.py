@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 组合异常检测算子
@@ -57,7 +56,7 @@ from tsas.engine.operator.base import (
     NumericOperator,
     UnsupervisedNumericOperatorMixin,
 )
-from tsas.engine.operator.detection.base import (BaseDeciderMixin, BasePredictorMixin, SingleScorerMixin)
+from tsas.engine.operator.detection.base import BaseDeciderMixin, BasePredictorMixin, SingleScorerMixin
 
 __all__ = [
     'CompositeScorerExtraOutput',
@@ -355,7 +354,7 @@ def _load_operators(path: str | Path) -> list:
     if not manifest_path.exists():
         raise FileNotFoundError(f"未找到 manifest 文件: {manifest_path}")
 
-    with open(manifest_path, "r", encoding="utf-8") as f:
+    with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
 
     operators = []

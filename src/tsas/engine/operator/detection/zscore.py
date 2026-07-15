@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Z-Score 异常检测算子
@@ -30,7 +29,7 @@ import pandas as pd
 from pydantic import BaseModel, Field
 
 from tsas.engine.operator.base import NumericOperator, UnsupervisedNumericOperatorMixin
-from tsas.engine.operator.detection.base import (BaseDeciderMixin, SingleScorerMixin)
+from tsas.engine.operator.detection.base import BaseDeciderMixin, SingleScorerMixin
 from tsas.engine.operator.detection.threshold_decider import (
     ThresholdDecider,
     ThresholdDeciderConfig,
