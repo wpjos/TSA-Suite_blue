@@ -23,6 +23,7 @@ dependencies = [
     "pydantic>=2.0",
     "loguru",
     "annotated-types",
+    "pyyaml>=6.0.3",
 ]
 
 [project.optional-dependencies]
@@ -47,13 +48,17 @@ lightgbm = [
 xgboost = [
     "xgboost>=1.7.6",
 ]
+scipy = [
+    "scipy>=1.11",
+]
 all = [
-    "tsa-suite[hpo,knn,sklearn,pyod,torch,lightgbm,xgboost]",
+    "tsa-suite[hpo,knn,sklearn,pyod,torch,lightgbm,xgboost,scipy]",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
+    "ruff>=0.15.21",
 ]
 test = [
     "pytest>=7.0",

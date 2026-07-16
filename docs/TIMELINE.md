@@ -302,6 +302,28 @@ TSA-Suite 项目
   │         - 待办：reg / sup / semi_class 三变体的 Predictor 适配，
   │           以及 4 变体共有的新参数（mask_*, top_k, loss_components 等）暴露
   │
+  ├─ 07-16  feature_construction 迁移 19 个 bqlib 算子
+  │         配合 MIGRATION_OPS.md 计划 C，将 bqlib features/ 全部 19 个算子
+  │         重写为 TSA-Suite IndependentMapFeature 子类，零 bqlib 依赖。
+  │         按算子类型拆分为 5 个新文件 + 1 个 helper：
+  │         - _array_helpers.py（+29）：_apply_per_cell_array
+  │         - basic_stat_feature.py（+201）：Max/Min/Mean/Std/Sum
+  │         - basic_transform_feature.py（+171）：Abs/Sqrt/Diff/Uni
+  │         - spectral_transform_feature.py（+363）：Rfft/RfftFreq/Fft/FftFreq/Envelope/Hps
+  │           • Envelope/Hps 用 scipy→numpy FFT 双重实现，scipy 缺失自动降级
+  │         - psychoacoustic_feature.py（+137）：BarkSpectrum/SpecificLoudness
+  │           （复用 signal_feature.py 既有 bark_spectrum_from_signal 工具）
+  │         - other_feature.py（+184）：Slope（OLS 斜率）、Ehr（包络谐波比）
+  │         配合迁移：
+  │         - pyproject.toml 新增 scipy 可选依赖
+  │         - simple_feature.py 微调 12 行（让位给新文件，避免循环 import）
+  │         - 同步 docs/MIGRATION_OPS.md 完成记录（579 行）
+  │         - 测试：新增 test_bqlib_migrated_ops.py（+788 行，94 用例）
+  │           • Oracle 函数对比 + 手工参考值 + 边界 + Config 校验
+  │         - 全量回归 419 passed
+  │         feature_skills.md 9 个 skill 全部解锁（含 envelope_analysis /
+  │           freq_diagnosis / predictive_32_features 三个依赖计划 C 第 1 组的）
+  │
   └─ master 为当前开发版本
 ```
 
