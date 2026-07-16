@@ -14,12 +14,12 @@ CICADA 异常检测算子
 示例用法::
 
     # 训练 + 推理
-    predictor = CICADAPredictor(config=CICADAPredictorConfig(name=["MLP"], win_size=10, num_channels=3, epochs=5))
+    predictor = CICADAPredictor(config=CICADAPredictorConfig(name=["MLP"], num_channels=3, epochs=5))
     predictor.fit(train_data)
     recon = predictor.run(test_data)
 
     # 训练 + 异常评分（重构残差）
-    scorer = CICADAScorer(config=CICADAScorerConfig(name=["MLP"], win_size=10, num_channels=3, epochs=5, metric="mse"))
+    scorer = CICADAScorer(config=CICADAScorerConfig(name=["MLP"], num_channels=3, epochs=5, metric="mse"))
     scorer.fit(train_data)
     scores, eo = scorer.run(test_data)
     # scores: shape (n_samples,) 的 1D 异常分数
@@ -91,7 +91,6 @@ class CICADAPredictorConfig(BaseModel):
 
     Attributes:
         name (list[str]): 专家模型名称列表，如 ``["GradPCA", "GradKPCA"]``
-        win_size (int): 滑动窗口长度，必须大于 0
         stride (int): 训练滑动步长，必须大于 0
         num_channels (int | None): 输入特征维度；``None`` 时从训练数据自动推断
         batch_size (int): 训练批大小，必须大于 0
@@ -130,7 +129,6 @@ class CICADAPredictorConfig(BaseModel):
     )
 
     # -- 窗口 / 数据形状 --
-    win_size: int = Field(default=5, ge=1, description="滑动窗口长度")
     stride: int = Field(default=1, ge=1, description="训练滑动步长")
     num_channels: int | None = Field(
         default=None,
@@ -209,7 +207,7 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
     注意:
         - CICADA 包为延迟导入（``from cicada import CICADA``），使用前需确保已安装 cicada-ad
         - ``num_channels`` 在 Config 中为 ``None`` 时自动从训练数据推断
-        - 输入数据长度需 >= ``win_size``，否则无法创建滑动窗口
+        - 滑动窗口长度锁定为 1（``_WIN_SIZE``），输入行数需 >= 1
         - 输入数据会被自动转换为 float32 以适配 CICADA 内部要求
 
     Input:
@@ -233,6 +231,9 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
     _MODEL_FILE = "cicada_model.pt"
     _META_FILE = "cicada_meta.json"
 
+    # 滑动窗口长度锁定为 1（不再作为可配置参数暴露）
+    _WIN_SIZE = 1
+
     @classmethod
     def name(cls) -> str:
         return "cicada_predictor"
@@ -254,7 +255,7 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
             oid (str | None): 算子实例唯一标识后缀，缺省自动生成
             config (CICADAPredictorConfig | None): 类型化实例参数，优先级高于键值对参数
             **kwargs: 实例参数键值对，最终用于构造 :class:`CICADAPredictorConfig`；
-                常用项包括 ``name``、``win_size``、``num_channels``、``epochs`` 等
+                常用项包括 ``name``、``num_channels``、``epochs`` 等
         """
         super().__init__(oid=oid, config=config, **kwargs)
         self._model = None
@@ -268,7 +269,7 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
         """
         校验 ndarray 输入的维度和行数
 
-        CICADA 要求输入为 2D 数组且行数不小于 ``win_size``，
+        CICADA 要求输入为 2D 数组且行数不小于 ``_WIN_SIZE``，
         否则无法构建滑动窗口进行重构。
 
         Args:
@@ -276,13 +277,13 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
             params (None): 无运行参数
 
         Raises:
-            ValueError: 输入非 2D 时，或行数不足 ``win_size`` 时
+            ValueError: 输入非 2D 时，或行数不足 ``_WIN_SIZE`` 时
         """
         if x.ndim != 2:
             raise ValueError(f"CICADAPredictor 要求 2D 输入，收到 {x.ndim}D")
-        if x.shape[0] < self.config.win_size:
+        if x.shape[0] < self._WIN_SIZE:
             raise ValueError(
-                f"CICADAPredictor 要求输入行数 >= win_size={self.config.win_size}，"
+                f"CICADAPredictor 要求输入行数 >= win_size={self._WIN_SIZE}，"
                 f"收到 {x.shape[0]} 行"
             )
 
@@ -305,7 +306,7 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
             params (None): 无训练参数
 
         Raises:
-            ValueError: 输入非 2D 或行数不足 ``win_size`` 时
+            ValueError: 输入非 2D 或行数不足 ``_WIN_SIZE`` 时
         """
         try:
             from cicada import CICADA  # noqa: lazy import
@@ -315,9 +316,9 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
         # 校验输入维度（fit 管线不做此检查，需在 _fit_data 内部校验）
         if x.ndim != 2:
             raise ValueError(f"CICADAPredictor 要求 2D 输入，收到 {x.ndim}D")
-        if x.shape[0] < self.config.win_size:
+        if x.shape[0] < self._WIN_SIZE:
             raise ValueError(
-                f"CICADAPredictor 要求输入行数 >= win_size={self.config.win_size}，"
+                f"CICADAPredictor 要求输入行数 >= win_size={self._WIN_SIZE}，"
                 f"收到 {x.shape[0]} 行"
             )
 
@@ -332,7 +333,7 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
         # 将 Config 全部参数透传构造 CICADA 模型实例
         self._model = CICADA(
             name=list(self.config.name),
-            win_size=self.config.win_size,
+            win_size=self._WIN_SIZE,
             stride=self.config.stride,
             num_channels=num_channels,
             batch_size=self.config.batch_size,
