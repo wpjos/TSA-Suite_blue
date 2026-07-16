@@ -156,3 +156,6 @@ _dataset
 
 # Claude Code temp directory
 .claude/
+
+# uv lockfile (resolved at install time; not checked in to avoid platform-specific drift)
+uv.lock
