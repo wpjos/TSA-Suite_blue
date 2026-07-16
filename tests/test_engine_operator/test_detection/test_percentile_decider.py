@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 百分位阈值决策器单元测试
@@ -21,7 +20,6 @@ from tsas.engine.operator.detection.percentile_decider import (
     PercentileDecider,
     PercentileDeciderExtraOutput,
 )
-
 
 # ============================================================================
 # 公共测试数据

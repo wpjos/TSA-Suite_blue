@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 CICADA 异常检测算子

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 时序异常检测算子基类定义模块
@@ -32,7 +31,7 @@ from typing import Generic
 
 import numpy as np
 
-from tsas.engine.operator.base import (C, DataFrameMeta, EO, NumericOperator, RP)
+from tsas.engine.operator.base import EO, RP, C, DataFrameMeta, NumericOperator
 
 __all__ = [
     'BasePredictorMixin',

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 PCA 异常检测算子
@@ -64,6 +63,7 @@ class PCAPredictorConfig(BaseModel):
     Attributes:
         n_components (int): 保留的主成分数量，必须为正整数
     """
+    model_config = {"frozen": True}
     n_components: int = Field(default=2, ge=1, description="保留的主成分数量，必须为正整数")
 
 
@@ -262,6 +262,7 @@ class PCAScorerConfig(BaseModel):
         n_components (int): PCA 保留的主成分数量
         metric (ResidualMetric): 残差计算方式
     """
+    model_config = {"frozen": True}
     n_components: int = Field(default=3, ge=1, description="PCA 保留的主成分数量")
     metric: ResidualMetric = Field(default=ResidualMetric.MSE, description="残差计算方式: 'mse' 或 'mae'")
 
@@ -422,6 +423,7 @@ class PCADetectorConfig(BaseModel):
         metric (ResidualMetric): 残差计算方式
         percentile (float): 百分位阈值
     """
+    model_config = {"frozen": True}
     n_components: int = Field(default=3, ge=1, description="PCA 保留的主成分数量")
     metric: ResidualMetric = Field(default=ResidualMetric.MSE, description="残差计算方式: 'mse' 或 'mae'")
     percentile: float = Field(default=95.0, ge=50.0, le=99.9, description="百分位阈值")
