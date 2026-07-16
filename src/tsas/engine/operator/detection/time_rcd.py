@@ -78,15 +78,8 @@ def _build_tester(num_features: int, config: "TimeRCDScorerConfig | TimeRCDPredi
     Returns:
         已加载默认（或指定）权重、可直接推理的 ``TimeRCDPretrainTester`` 实例。
     """
-    try:
-        from bq_rcd.time_rcd import TimeRCDPretrainTester
-        from bq_rcd.time_rcd.time_rcd_config import TimeRCDConfig, TimeSeriesConfig
-    except ImportError:
-        raise RuntimeError(
-            "未找到 bq_rcd 本地依赖（内部库，不在 PyPI 上）。"
-            "请通过 `uv pip install -e /Users/chao/bq/bq_rcd` "
-            "或在 pyproject.toml 中以 path 依赖安装 bq_rcd / bq-rcd 后重试。"
-        ) from None
+    from tsas.engine.operator.detection._local_libs import import_rcd_classes
+    TimeRCDPretrainTester, TimeRCDConfig, TimeSeriesConfig = import_rcd_classes()
 
     ts_config = TimeSeriesConfig(
         patch_size=config.patch_size,
