@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 特征构造算子基类定义模块
@@ -52,7 +51,7 @@
 
 from abc import ABC, ABCMeta, abstractmethod
 from enum import StrEnum
-from typing import Generic, Self, TypeVar, Union
+from typing import Generic, Self, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -196,7 +195,7 @@ class WindowFeatureConfig(BaseFeatureConfig):
 # 第1层：Feature 基础混入
 # ============================================================================
 
-FS = TypeVar("FS", bound=Union[BaseModel, None])
+FS = TypeVar("FS", bound=BaseModel | None)
 """特征训练状态（Feature State）类型泛型
 
 - 绑定为 ``BaseModel | None``，即 Pydantic 模型子类或 ``None``。

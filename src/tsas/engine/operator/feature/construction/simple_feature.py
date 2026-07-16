@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 简单特征构造算子实现模块
@@ -19,9 +18,14 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from tsas.engine.operator.base import DataFrameMeta
-from tsas.engine.operator.feature.construction.base import (BaseFeatureConfig, IndependentMapFeature,
-                                                            IndependentWindowFeature, JointMapFeature,
-                                                            LearnableJointMapFeature, WindowFeatureConfig)
+from tsas.engine.operator.feature.construction.base import (
+    BaseFeatureConfig,
+    IndependentMapFeature,
+    IndependentWindowFeature,
+    JointMapFeature,
+    LearnableJointMapFeature,
+    WindowFeatureConfig,
+)
 
 __all__ = [
     'SquareConfig',
