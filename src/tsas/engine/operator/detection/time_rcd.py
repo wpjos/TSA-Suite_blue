@@ -82,7 +82,11 @@ def _build_tester(num_features: int, config: "TimeRCDScorerConfig | TimeRCDPredi
         from bq_rcd.time_rcd import TimeRCDPretrainTester
         from bq_rcd.time_rcd.time_rcd_config import TimeRCDConfig, TimeSeriesConfig
     except ImportError:
-        raise RuntimeError("请先安装 bq-rcd 包") from None
+        raise RuntimeError(
+            "未找到 bq_rcd 本地依赖（内部库，不在 PyPI 上）。"
+            "请通过 `uv pip install -e /Users/chao/bq/bq_rcd` "
+            "或在 pyproject.toml 中以 path 依赖安装 bq_rcd / bq-rcd 后重试。"
+        ) from None
 
     ts_config = TimeSeriesConfig(
         patch_size=config.patch_size,
