@@ -205,7 +205,7 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
         - ``_run_data``: 调用 CICADA reconstruct 返回重构值
 
     注意:
-        - CICADA 包为延迟导入（``from cicada import CICADA``），属内部本地库，
+        - CICADA 包为延迟导入（``_local_libs.import_cicada_class()``），属内部本地库，
           **不在 PyPI 上**，一般以 ``cicada`` 或 ``bq_cicada`` 名称通过 path 依赖发布
         - ``num_channels`` 在 Config 中为 ``None`` 时自动从训练数据推断
         - 滑动窗口长度锁定为 1（``_WIN_SIZE``），输入行数需 >= 1
@@ -309,14 +309,8 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
         Raises:
             ValueError: 输入非 2D 或行数不足 ``_WIN_SIZE`` 时
         """
-        try:
-            from cicada import CICADA  # noqa: lazy import
-        except ImportError:
-            raise RuntimeError(
-                "未找到 CICADA 本地依赖（内部库，不在 PyPI 上）。"
-                "请通过 `uv pip install -e /Users/chao/bq/bq_cicada` "
-                "或在 pyproject.toml 中以 path 依赖安装 cicada / bq_cicada 后重试。"
-            ) from None
+        from tsas.engine.operator.detection._local_libs import import_cicada_class
+        CICADA = import_cicada_class()  # noqa: lazy import
 
         # 校验输入维度（fit 管线不做此检查，需在 _fit_data 内部校验）
         if x.ndim != 2:
