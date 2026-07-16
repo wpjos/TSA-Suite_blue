@@ -66,7 +66,6 @@ def _make_predictor(**overrides):
     """创建最小配置的 CICADAPredictor（用于加速测试）"""
     defaults = dict(
         name=["MLP"],
-        win_size=10,
         num_channels=3,
         batch_size=32,
         epochs=1,
@@ -94,7 +93,6 @@ class TestCICADAPredictorConfig:
         """
         cfg = CICADAPredictorConfig()
         assert cfg.name == ["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"]
-        assert cfg.win_size == 5
         assert cfg.stride == 1
         assert cfg.num_channels is None
         assert cfg.batch_size == 256
@@ -113,16 +111,7 @@ class TestCICADAPredictorConfig:
         """
         cfg = CICADAPredictorConfig()
         with pytest.raises(ValidationError):
-            cfg.win_size = 100
-
-    def test_config_validation_win_size(self):
-        """
-        目的：验证 win_size 约束
-        输入：win_size=0
-        预期：ValidationError
-        """
-        with pytest.raises(ValidationError):
-            CICADAPredictorConfig(win_size=0)
+            cfg.batch_size = 100
 
     def test_config_validation_epochs(self):
         """
@@ -145,11 +134,11 @@ class TestCICADAPredictorConfig:
     def test_config_custom_values(self):
         """
         目的：验证自定义参数正确传递
-        输入：自定义 win_size, batch_size
+        输入：自定义 stride, batch_size
         预期：Config 中值为自定义值
         """
-        cfg = CICADAPredictorConfig(win_size=100, batch_size=64)
-        assert cfg.win_size == 100
+        cfg = CICADAPredictorConfig(stride=100, batch_size=64)
+        assert cfg.stride == 100
         assert cfg.batch_size == 64
 
 
@@ -194,11 +183,11 @@ class TestCICADAPredictorFit:
     def test_fit_data_too_short_raises(self):
         """
         目的：验证数据行数不足时报错
-        输入：(5, 3) 数据，win_size=10
+        输入：(0, 3) 空数据（win_size 锁定为 1，行数需 >= 1）
         预期：ValueError
         """
         predictor = _make_predictor()
-        short_data = np.random.randn(5, 3).astype(np.float32)
+        short_data = np.random.randn(0, 3).astype(np.float32)
         with pytest.raises(ValueError, match="win_size"):
             predictor.fit(short_data)
 
@@ -397,7 +386,6 @@ def _make_scorer(**overrides):
     """
     defaults = dict(
         name=["MLP"],
-        win_size=10,
         num_channels=3,
         batch_size=32,
         epochs=1,
@@ -428,7 +416,6 @@ class TestCICADAScorerConfig:
         cfg = CICADAScorerConfig()
         # 继承的 CICADA 超参字段（与 Predictor Config 默认值完全一致）
         assert cfg.name == ["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"]
-        assert cfg.win_size == 5
         assert cfg.stride == 1
         assert cfg.num_channels is None
         assert cfg.batch_size == 256
@@ -473,20 +460,20 @@ class TestCICADAScorerConfig:
     def test_config_inherited_validation_still_works(self):
         """
         目的：验证父类的字段约束在子类中仍然生效
-        输入：win_size=0（违反 gt=0）
+        输入：epochs=0（违反 ge=1）
         预期：抛出 ValidationError
         """
         with pytest.raises(ValidationError):
-            CICADAScorerConfig(win_size=0)
+            CICADAScorerConfig(epochs=0)
 
     def test_config_custom_values(self):
         """
         目的：验证父类字段与新增字段可同时自定义
-        输入：win_size=20, metric="mae"
+        输入：stride=20, metric="mae"
         预期：两者均正确写入
         """
-        cfg = CICADAScorerConfig(win_size=20, metric="mae")
-        assert cfg.win_size == 20
+        cfg = CICADAScorerConfig(stride=20, metric="mae")
+        assert cfg.stride == 20
         assert cfg.metric == "mae"
 
 
@@ -533,11 +520,11 @@ class TestCICADAScorerFit:
     def test_fit_data_too_short_raises(self):
         """
         目的：验证数据行数不足以构造滑动窗口时报错
-        输入：(5, 3) 数据，win_size=10
+        输入：(0, 3) 空数据（win_size 锁定为 1，行数需 >= 1）
         预期：内部 Predictor 抛出 ValueError("win_size ...")
         """
         scorer = _make_scorer()
-        short_data = np.random.randn(5, 3).astype(np.float32)
+        short_data = np.random.randn(0, 3).astype(np.float32)
         with pytest.raises(ValueError, match="win_size"):
             scorer.fit(short_data)
 
