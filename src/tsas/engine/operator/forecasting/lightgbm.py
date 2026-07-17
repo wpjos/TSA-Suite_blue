@@ -74,6 +74,7 @@ class LightGBMForecasterConfig(BaseModel):
     # ---- 运行参数 ----
     device: Literal['cpu', 'gpu'] = Field(default='cpu', description="计算设备")
     n_jobs: int = Field(default=-1, ge=-1, le=64, description="LightGBM 线程数，-1 表示全部")
+    seed: int = Field(default=42, ge=0, description="随机种子，用于保证训练可复现")
 
     class Config:
         extra = 'forbid'
@@ -152,7 +153,7 @@ class LightGBMForecaster(BaseForecaster[ForecastExtraOutput,
             "reg_alpha": cfg.reg_alpha,
             "reg_lambda": cfg.reg_lambda,
             "verbose": -1,
-            "seed": 42,
+            "seed": cfg.seed,
             "n_jobs": cfg.n_jobs,
         }
         if cfg.device != 'cpu':
@@ -280,6 +281,7 @@ class LightGBMForecaster(BaseForecaster[ForecastExtraOutput,
 
     def _fit_data(self, x: np.ndarray, y: np.ndarray, *, params: None) -> None:
         cfg = self.config
+        np.random.seed(cfg.seed)
         self._num_features = x.shape[1]
         self._num_targets = y.shape[1]
 

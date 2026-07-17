@@ -92,6 +92,39 @@ def _set_seed(seed: int | None) -> None:
     print(f"[SEED] 随机种子已固定: {seed}")
 
 
+def _inject_cli_seed_into_operator_config(
+    config: dict, registry: OperatorRegistry, seed: int | None
+) -> None:
+    """将 CLI 的 ``--seed`` 透传到算子配置中（仅当算子配置支持 ``seed`` 字段时）。
+
+    这样 ``--seed`` 对 iTransformer / LightGBM / XGBoost 等带 ``seed`` 配置项的
+    预测算子都能生效；对不支持 ``seed`` 的算子则保持静默，避免触发
+    ``extra = 'forbid'`` 错误。
+    """
+    if seed is None:
+        return
+
+    op_spec = config.get('operator', {})
+    op_name = op_spec.get('name')
+    if not op_name:
+        return
+
+    try:
+        op_cls = registry.get(op_name)
+    except KeyError:
+        return
+
+    cfg_type = getattr(op_cls, '_config_type', None)
+    if cfg_type is None:
+        return
+
+    # Pydantic v2 使用 model_fields，v1 使用 __fields__
+    fields = getattr(cfg_type, 'model_fields', None) or getattr(cfg_type, '__fields__', {})
+    if 'seed' in fields:
+        op_spec.setdefault('config', {})
+        op_spec['config']['seed'] = seed
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """
     构建命令行参数解析器
@@ -276,6 +309,9 @@ def _handle_fit(registry: OperatorRegistry, args: argparse.Namespace) -> None:
     # 加载数据和配置
     df = load_data(args.input)
     config = load_config(args.config)
+
+    # 如果算子支持 seed，把 CLI 的 --seed 透传到算子配置
+    _inject_cli_seed_into_operator_config(config, registry, args.seed)
 
     # 实例化算子
     op_instance, input_columns, target_column = _instantiate_operator(config, registry)

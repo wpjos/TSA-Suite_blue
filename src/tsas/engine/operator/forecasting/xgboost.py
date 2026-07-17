@@ -81,6 +81,7 @@ class XGBoostForecasterConfig(BaseModel):
     # ---- 运行参数 ----
     device: Literal['cpu', 'gpu'] = Field(default='cpu', description="计算设备")
     n_jobs: int = Field(default=-1, ge=-1, le=64, description="XGBoost 线程数，-1 表示全部")
+    seed: int = Field(default=42, ge=0, description="随机种子，用于保证训练可复现")
 
     class Config:
         extra = 'forbid'
@@ -158,7 +159,7 @@ class XGBoostForecaster(BaseForecaster[ForecastExtraOutput,
             "reg_alpha": cfg.reg_alpha,
             "reg_lambda": cfg.reg_lambda,
             "verbosity": 0,
-            "seed": 42,
+            "seed": cfg.seed,
             "nthread": cfg.n_jobs,
         }
         if cfg.device != 'cpu':
@@ -286,6 +287,7 @@ class XGBoostForecaster(BaseForecaster[ForecastExtraOutput,
 
     def _fit_data(self, x: np.ndarray, y: np.ndarray, *, params: None) -> None:
         cfg = self.config
+        np.random.seed(cfg.seed)
         self._num_features = x.shape[1]
         self._num_targets = y.shape[1]
 
