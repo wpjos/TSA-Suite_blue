@@ -6,8 +6,10 @@
 
 特征构造模块基于统一的算子接口（`BaseOperator` 和 `LearnableOperatorMixin`），采用了**多维度正交组合混入类型（Mixin）+ 模板方法模式**的设计。整体包含两个核心组件：
 
-1. **特征算子基类体系 (`base.py`)**：通过组合“列关系”、“行关系”和“是否可训练”这三个维度，提供了 8 个供开发者直接继承的编排基类。基类自动处理了参数校验、列遍历、滑动窗口切片、填充（Padding）与对齐（Alignment）等底层逻辑。
+1. **特征算子基类体系 (`base.py`)**：通过组合"列关系"、"行关系"和"是否可训练"这三个维度，提供了 8 个供开发者直接继承的编排基类。基类自动处理了参数校验、列遍历、滑动窗口切片、填充（Padding）与对齐（Alignment）等底层逻辑。
 2. **统一命令行 (`cli/`)**：提供基于包扫描的自动算子注册发现机制和统一命令行调用入口，通过声明式配置批量协调并执行特征算子。
+
+**注册条件**：只要特征算子类放置在 `tsas.engine.operator.feature.construction` 包或其子包下，并正确实现了 `name()` 类方法，CLI 工具会在启动时自动扫描并注册。多算子的批量调用通过 CLI 声明式调度，详见 `cli/README.md`。
 
 ---
 
@@ -42,41 +44,29 @@
     * `LearnableJointMapFeature[C, FS]`
     * `LearnableJointWindowFeature[C, FS]`
 
+### 2.3 Config 体系
+
+特征的配置类分为两个基类，根据行关系选择：
+
+- **Map 类型**：继承 `BaseFeatureConfig`，基类提供 `input_columns: list[str]` 字段（至少包含一列）
+- **Window 类型**：继承 `WindowFeatureConfig`，在 `BaseFeatureConfig` 基础上增加：
+    - `window_size: int` — 滑动窗口大小（`ge=1`）
+    - `padding: Padding | float | int | None` — 填充模式（默认 `None` 不填充）
+    - `alignment: Alignment` — 窗口对齐方式（默认 `Alignment.RIGHT`）
+
+Config 应设置 `frozen=True` 确保不可变。子类特有参数建议使用 `Field(description="...")` 添加描述，这些信息会被 CLI `show` 命令的参数表自动提取。
+
 ---
 
-## 3. 开发新的特征算子
-
-### 3.1 步骤一：定义 Config 类
-
-特征的配置必须继承 `BaseFeatureConfig`，若是 `Window` 类型的特征，则必须继承 `WindowFeatureConfig`。
-
-```python
-from pydantic import Field
-from tsas.engine.operator.feature.construction.base import BaseFeatureConfig, WindowFeatureConfig
-
-
-# 针对 Map 类型
-class SquareConfig(BaseFeatureConfig):
-    pass  # 基类已经包含了 input_columns 字段
-
-
-# 针对 Window 类型
-class RollingMeanConfig(WindowFeatureConfig):
-    # 基类已经包含了 input_columns, window_size, padding, alignment
-    # 可在子类添加特有参数
-    min_periods: int = Field(default=1)
-```
-
-**关于 Window 模式的参数说明**:
-
-* `padding`: 支持 `None` (不填充，输出长度减少)、`Padding.EDGE` (边界值)、`Padding.NAN`、`Padding.REFLECT` (镜像)、`Padding.RING` (首尾相接)，以及直接传入数值（如 `0`、`3.14`）。
-* `alignment`: 支持 `Alignment.RIGHT` (右对齐，当前时刻与历史时刻构成窗口) 和 `Alignment.LEFT` (左对齐)。
-
-### 3.2 步骤二：继承编排基类并实现 `compute` 和命名方法
+## 3. 算子开发
 
 所有的特征算子都必须实现静态方法 `compute(x: np.ndarray, *, state=None, **params)` 和输出列命名方法。
 
-**不可训练的独立映射算子示例 (SquareFeature)**：
+编写算子类 Docstring 时，应包含 **Input** 和 **Output** 段，描述输入数据的含义和形状、输出数据的含义和形状。这些信息会被 CLI `show` 命令自动提取并渲染为帮助文档。
+
+### 3.1 不可训练算子
+
+**独立映射算子示例 (SquareFeature)**：
 
 ```python
 import numpy as np
@@ -86,10 +76,23 @@ from tsas.engine.operator.feature.construction.base import (
 
 
 class SquareConfig(BaseFeatureConfig):
-    pass
+    pass  # 仅需 input_columns，无额外参数
 
 
 class SquareFeature(IndependentMapFeature[SquareConfig]):
+    """逐元素平方特征
+
+    对每个输入列独立计算平方值，一列输入产出一列输出。
+
+    输出列名格式: ``{源列名}_square``
+
+    Input:
+        x: 特征矩阵，形状 (n_samples, n_features)，由 Config 的 input_columns 选取
+
+    Output:
+        平方变换后的特征矩阵，形状 (n_samples, n_features)，列数与输入相同
+    """
+
     @classmethod
     def name(cls) -> str:
         return "square_feature"
@@ -109,49 +112,19 @@ class SquareFeature(IndependentMapFeature[SquareConfig]):
         return self._make_output_column_name(input_col, "square")
 ```
 
-**不可训练的独立窗口算子示例 (RollingMeanFeature)**：
+### 3.2 可训练算子
 
-```python
-from tsas.engine.operator.feature.construction.base import (
-    WindowFeatureConfig, IndependentWindowFeature
-)
-
-
-class RollingMeanConfig(WindowFeatureConfig):
-    pass  # 基类已包含 window_size, padding, alignment
-
-
-class RollingMeanFeature(IndependentWindowFeature[RollingMeanConfig]):
-    @classmethod
-    def name(cls) -> str:
-        return "rolling_mean_feature"
-
-    @classmethod
-    def version(cls) -> tuple[int, ...]:
-        return (1, 0, 0)
-
-    @staticmethod
-    def compute(x: np.ndarray, *, state=None, **params) -> float:
-        # x 是大小为 window_size 的切片（由 Window 机制保证）
-        # Independent 模式下 x 可能包含多列，列间独立性由 compute 自行保证
-        # 窗口计算返回单个数值
-        return float(np.mean(x))
-
-    def _name_output_column(self, input_col: str, output_val) -> str:
-        return self._make_output_column_name(input_col, "rolling_mean")
-```
-
-### 3.3 针对可训练特征算子 (Learnable Feature)
-
-如果你继承的是 `Learnable...` 相关的基类，需要实现以下内容：
+继承 `Learnable...` 基类的算子需要额外实现：
 
 1. **`compute` 静态方法**：接收 `state` 参数用于推理
-2. **`train` 静态方法**：覆盖默认训练逻辑，返回状态对象（Pydantic BaseModel 子类）
+2. **`train` 静态方法**：覆写默认训练逻辑，返回状态对象（Pydantic BaseModel 子类）
 3. **`_get_train_params` 方法**（可选）：向 `train` 传递额外参数
 4. **`_name_output_columns` 方法**：定义输出列名
 5. **`save` / `load` 方法**：持久化训练状态
 
 可训练特征算子的训练流程由基类 `LearnableFeature._fit` 模板方法自动编排：输入校验 → 列筛选 → 数据解包 → 调用 `train` → 保存状态到 `_state` → 标记已训练。开发者无需覆写 `_fit`，只需实现 `train` 静态方法即可。
+
+**多列联合可训练算子示例 (PCAFeature)**：
 
 ```python
 from typing import Self
@@ -168,14 +141,11 @@ from tsas.engine.operator.feature.construction.base import (
 
 class PCAConfig(BaseFeatureConfig):
     """PCA 降维特征的 Config"""
-    n_components: int = Field(ge=1)
+    n_components: int = Field(ge=1, description="降维目标维度数")
 
 
 class PCAState(BaseModel):
-    """PCA 训练状态
-
-    使用 ``arbitrary_types_allowed`` 以支持 numpy 数组类型。
-    """
+    """PCA 训练状态"""
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     mean: np.ndarray
@@ -183,6 +153,17 @@ class PCAState(BaseModel):
 
 
 class PCAFeature(LearnableJointMapFeature[PCAConfig, PCAState]):
+    """PCA 降维特征
+
+    基于训练数据学习主成分方向，推理时将输入数据投影到主成分空间。
+    多列输入，输出列数由 n_components 决定。
+
+    Input:
+        x: 特征矩阵，形状 (n_samples, n_features)，由 Config 的 input_columns 选取
+
+    Output:
+        降维后的特征矩阵，形状 (n_samples, n_components)
+    """
 
     @classmethod
     def name(cls) -> str:
@@ -194,11 +175,7 @@ class PCAFeature(LearnableJointMapFeature[PCAConfig, PCAState]):
 
     @staticmethod
     def train(x: np.ndarray, **params) -> PCAState:
-        """基于训练数据学习 PCA 状态
-
-        由基类 ``LearnableFeature._fit`` 自动调用，
-        无需开发者手动调用或覆写 ``_fit``。
-        """
+        """基于训练数据学习 PCA 状态（由基类自动调用）"""
         n_components = params.get("n_components", 2)
         mean = x.mean(axis=0)
         centered = x - mean
@@ -209,12 +186,10 @@ class PCAFeature(LearnableJointMapFeature[PCAConfig, PCAState]):
         return PCAState(mean=mean, components=components)
 
     def _get_train_params(self):
-        """向 ``train`` 传递额外参数"""
         return {"n_components": self.config.n_components}
 
     @staticmethod
     def compute(x: np.ndarray, *, state=None, **params) -> np.ndarray:
-        # state 由基类自动传入 PCAState 对象
         if state is None:
             raise ValueError("PCA 需要先训练")
         centered = x - state.mean
@@ -225,8 +200,7 @@ class PCAFeature(LearnableJointMapFeature[PCAConfig, PCAState]):
         return [f"pca_{i}" for i in range(n_components)]
 
     def save(self, path: str | Path):
-        """持久化 PCA 算子"""
-        super().save(path)  # 保存 config 等基类信息
+        super().save(path)
         path = Path(path)
         if self._state is not None:
             np.save(path / "pca_mean.npy", self._state.mean)
@@ -234,7 +208,6 @@ class PCAFeature(LearnableJointMapFeature[PCAConfig, PCAState]):
 
     @classmethod
     def load(cls, path: str | Path, *, name: str | None = None) -> Self:
-        """从指定目录加载 PCA 算子"""
         instance = super().load(path, name=name)
         path = Path(path)
         mean_file = path / "pca_mean.npy"
@@ -250,12 +223,27 @@ class PCAFeature(LearnableJointMapFeature[PCAConfig, PCAState]):
 
 ---
 
-## 4. 算子注册与编排引擎使用
+## 4. 关键注意事项
 
-基于最新的架构设计，开发者无需手动进行算子注册（旧版 `FeatureRegistry` 已被移除）。
+1. **`compute` 必须是静态方法且无副作用**：所有可训练算子的状态通过 `state` 参数传入，不应在 `compute` 内部访问 `self`。
+2. **`_name_output_column` vs `_name_output_columns`**：
+    - `Independent` 模式：实现 `_name_output_column(input_col, output_val)` 为每个输入列生成一个列名，框架自动按列分组调用。
+    - `Joint` 模式或需要自定义多列命名：覆写 `_name_output_columns(output_data, meta, params)` 返回完整列名列表。
+    - 默认命名模板：`_make_output_column_name(source_col, feature_name)` 生成 `{源列名}_{特征名}` 格式。
+3. **Window 模式的 padding + alignment 组合效果**：
+    - `padding=None` 时输出行数减少（`n_samples - window_size + 1`），`alignment` 决定索引截取位置。
+    - `padding` 非 `None` 时输出行数与输入一致，`alignment` 决定填充方向（右对齐填充头部，左对齐填充尾部）。
+    - 镜像填充（`REFLECT`）和循环填充（`RING`）要求数据长度 > `window_size - 1`。
+4. **Independent 模式的输出列数约束**：输出列数必须是输入列数的整数倍，否则框架会抛出 `ValueError`。
+5. **参数注入**：通过 `_get_compute_params()` 和 `_get_train_params()` 向 `compute` / `train` 传递 Config 中的参数，保持静态方法的纯粹性。
 
-**自动注册机制**：
-只要你的特征算子类放置在 `tsas.engine.operator.feature.construction` 模块或其子包下，并且正确实现了 `name()` 类方法，算子模块的 CLI 工具底层的 `OperatorRegistry` 就会在启动时自动扫描并注册该算子。
+---
 
-**编排与调用**：
-对于多个特征构造算子的批量调用和对齐合并（取代旧版的 `FeatureConstructor`），现在统一由 CLI 命令提供声明式调度。请参考 `src/tsas/engine/operator/cli/README.md` 文档获取更多配置详情和使用指南。
+## 5. 持久化
+
+可训练特征算子需要覆写 `save()` / `load()` 以持久化训练状态（如模型权重、统计参数等）：
+
+- **`save()`**：先调用 `super().save(path)` 保存 config 等基类信息，再保存 `_state` 中的自有状态。
+- **`load()`**：先调用 `super().load(path, name=name)` 恢复基类信息，再恢复状态并设置 `self._fitted = True`。
+
+> **重要**：`_fitted` 状态不会自动恢复，`load` 中**必须**手动设置 `self._fitted = True`。
