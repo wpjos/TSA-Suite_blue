@@ -14,6 +14,8 @@ iTransformer 工业时序预测算子
 2. 推理阶段：标准化输入、预测归一化残差、反归一化并加基准值得到物理量预测
 """
 
+import os
+import random
 from pathlib import Path
 from typing import Literal, Optional
 
@@ -76,6 +78,7 @@ class ITransformerForecasterConfig(BaseModel):
     max_grad_norm: float = Field(default=1.0, ge=0.5, le=4.0, description="梯度裁剪范数")
     scheduler_factor: float = Field(default=0.5, ge=0.25, le=2.0, description="学习率衰减因子")
     scheduler_patience: int = Field(default=3, ge=1, le=12, description="学习率衰减耐心轮数")
+    seed: int = Field(default=42, ge=0, description="随机种子，用于保证训练可复现")
 
     # ---- 运行参数 ----
     device: Literal['auto', 'cpu', 'cuda', 'npu'] = Field(default='auto', description="计算设备（auto/cpu/cuda/npu）")
@@ -202,6 +205,29 @@ None]):
             return torch.device('npu')
         return torch.device(cfg.device)
 
+    def _set_seed(self, seed: int | None = None) -> None:
+        """固定 Python/NumPy/PyTorch 的随机种子，保证训练可复现。
+
+        当 ``seed`` 为 None 时使用 ``self.config.seed``。
+        若使用 CUDA，会同时设置 cudnn 确定性模式。
+        """
+        if seed is None:
+            seed = self.config.seed
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+        # 让 torch 在 CPU 上尽量使用确定性算法；遇到不可确定性算子会抛异常
+        try:
+            torch.use_deterministic_algorithms(True)
+        except (AttributeError, RuntimeError):
+            # 旧版本 PyTorch 或部分算子不支持时回退
+            pass
+        os.environ.setdefault('PYTHONHASHSEED', str(seed))
+
     def _resolve_target_idx(self, num_features: int) -> int:
         cfg = self.config
         if cfg.target_idx == -1:
@@ -276,6 +302,10 @@ None]):
 
     def _fit_data(self, x: np.ndarray, y: np.ndarray, *, params: None) -> None:
         cfg = self.config
+
+        # 固定随机种子，保证相同参数下训练结果可复现
+        self._set_seed()
+
         self._num_features = x.shape[1]
         self._num_targets = y.shape[1]
         self._target_idx = self._resolve_target_idx(self._num_features)
@@ -296,9 +326,21 @@ None]):
         x_scaled = self._scaler.transform(x)
         y_scaled = x_scaled[:, [self._target_idx]]
 
-        # 3. 用缩放后的数据构造 DataLoader
+        # 校验 scaler 是否产生 NaN/Inf 或除零
+        if np.isnan(x_scaled).any() or np.isinf(x_scaled).any():
+            raise ValueError(
+                "标准化后的 x 中存在 NaN 或 Inf，可能是某列标准差为 0 或输入包含非法数值。"
+            )
+        if (self._scaler.scale_ == 0).any():
+            zero_cols = np.where(self._scaler.scale_ == 0)[0]
+            raise ValueError(
+                f"以下列标准差为 0，标准化会除以 0: {zero_cols.tolist()}"
+            )
+
+        # 3. 用缩放后的数据构造 DataLoader（训练集 shuffle 使用固定生成器）
         train_ds, val_ds, _, _ = self._make_datasets(x_scaled, y_scaled)
-        train_loader = DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True)
+        g = torch.Generator().manual_seed(cfg.seed)
+        train_loader = DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True, generator=g)
         val_loader = DataLoader(val_ds, batch_size=cfg.batch_size, shuffle=False)
 
         # 4. 构建模型

@@ -34,6 +34,7 @@ import sys
 
 import numpy as np
 import pandas as pd
+import torch
 
 from tsas.engine.operator.base import BaseOperator, LearnableOperatorMixin
 from tsas.engine.operator.cli.common import (auto_suffix, build_help_subparser, build_list_subparser,
@@ -68,6 +69,27 @@ def create_registry() -> OperatorRegistry:
     )
     registry.discover()
     return registry
+
+
+def _set_seed(seed: int | None) -> None:
+    """固定随机种子，使训练结果可复现。
+
+    同时设置 Python random、NumPy、PyTorch 及 CUDA 的随机种子，并启用
+    PyTorch 确定性算法（warn_only=True，避免不支持的算子直接报错）。
+    """
+    if seed is None:
+        return
+    import random
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    torch.use_deterministic_algorithms(True, warn_only=True)
+    print(f"[SEED] 随机种子已固定: {seed}")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -105,6 +127,10 @@ def _build_parser() -> argparse.ArgumentParser:
     fit_parser.add_argument('--target', '-t', required=True, help='目标变量列名')
     fit_parser.add_argument('--config', '-c', required=True, help='算子配置文件路径')
     fit_parser.add_argument('--save', default=None, help='保存训练模型的目录路径')
+    fit_parser.add_argument('--chunk-ids', default=None,
+                            help='chunk_ids 文件路径（CSV 单列表，无表头）')
+    fit_parser.add_argument('--seed', type=int, default=None,
+                            help='固定随机种子以获得可复现的训练结果')
 
     return parser
 
@@ -244,6 +270,9 @@ def _handle_fit(registry: OperatorRegistry, args: argparse.Namespace) -> None:
         registry (OperatorRegistry): 算子注册中心
         args (argparse.Namespace): 解析后的命令行参数
     """
+    # 先固定随机种子，再加载数据/实例化算子/训练
+    _set_seed(args.seed)
+
     # 加载数据和配置
     df = load_data(args.input)
     config = load_config(args.config)
