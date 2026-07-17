@@ -27,7 +27,7 @@
     * **滑动窗口 (`Window`)**：计算基于时序滑动窗口。基类自动根据配置的 `window_size`、`padding` 和 `alignment` 进行滑动切窗。
 * **是否可训练（Learnability）**:
     * **不可训练 (`BaseFeature`)**：纯计算算子（如求均值、对数、差分等）。
-  * **可训练 (`LearnableFeature`)**：需要根据训练数据进行拟合学习（Fit）的算子（如 PCA、Scaler 等）。
+    * **可训练 (`LearnableFeature`)**：需要根据训练数据进行拟合学习（Fit）的算子（如 PCA、Scaler 等）。
 
 ### 2.2 八个核心编排基类
 
