@@ -252,6 +252,122 @@ class TestBinaryClassificationCurveAUC:
         # 全部分数相同，无法区分，AUC 应为 0 或接近 0.5（取决于实现）
         assert 0.0 <= result.auc_roc <= 0.5
 
+    def test_auc_roc_degenerate_scores_many_zeros(self):
+        """
+        测试目的: 退化分数场景（大量 score=0 + 少量非零）下 AUC-ROC 正确性
+
+        背景: PCA 退化时大量样本 score=0，仅少量非零值。修复前
+        _compute_auc_trapezoidal 在相同 FPR 值处积分路径错误，
+        导致 AUC-ROC 严重偏差（0.1555 vs sklearn 0.9945）。
+        修复后通过 np.maximum.accumulate 单调化，应与 sklearn 一致。
+
+        输入: 500 样本，80% 为零分数，正类位于尾部
+        输出: BinaryClassificationCurveResult
+        预期: AUC-ROC 与 sklearn roc_auc_score 差异 < 0.01
+        """
+        rng = np.random.RandomState(42)
+        n = 500
+        y_truth = np.zeros(n, dtype=int)
+        y_truth[480:] = 1
+
+        y_predict = np.zeros(n)
+        y_predict[:480] = rng.choice(
+            [0.0, 0.1, 0.3, 0.5, 0.7, 1.0, 2.0, 3.0, 5.0],
+            size=480,
+            p=[0.85, 0.03, 0.03, 0.03, 0.03, 0.01, 0.01, 0.005, 0.005],
+        )
+        y_predict[480:] = rng.uniform(0.5, 5.0, size=20)
+
+        op = BinaryClassificationCurve()
+        result = op.run((y_truth, y_predict))
+
+        from sklearn.metrics import roc_auc_score
+        auc_sk = roc_auc_score(y_truth, y_predict)
+
+        assert abs(result.auc_roc - auc_sk) < 0.01
+
+    def test_auc_roc_extreme_degenerate_few_unique_values(self):
+        """
+        测试目的: 极端退化场景（仅 9 个唯一分数值）下 AUC-ROC 正确性
+
+        背景: 极端退化场景下修复前 AUC-ROC=0.0，修复后应接近 1.0
+        （正类样本分数全部高于负类样本分数）。
+
+        输入: 500 样本，负类分数为 0.0-3.0 的离散值，正类分数为 5.0-10.0
+        输出: BinaryClassificationCurveResult
+        预期: AUC-ROC 与 sklearn roc_auc_score 差异 < 0.01
+        """
+        y_predict = np.array(
+            [0.0] * 450 + [1.0] * 20 + [2.0] * 10 +
+            [3.0] * 8 + [5.0] * 5 + [7.0] * 3 + [8.0] * 2 +
+            [9.0] * 1 + [10.0] * 1
+        )
+        y_truth = np.zeros(500, dtype=int)
+        y_truth[450:] = 1
+
+        op = BinaryClassificationCurve()
+        result = op.run((y_truth, y_predict))
+
+        from sklearn.metrics import roc_auc_score
+        auc_sk = roc_auc_score(y_truth, y_predict)
+
+        assert abs(result.auc_roc - auc_sk) < 0.01
+
+    def test_auc_pr_degenerate_scores(self):
+        """
+        测试目的: 退化分数场景下 AUC-PR 同样被修复
+
+        背景: AUC-PR 与 AUC-ROC 共用 _compute_auc_trapezoidal，
+        修复应同时生效。
+
+        输入: 同 test_auc_roc_degenerate_scores_many_zeros
+        输出: BinaryClassificationCurveResult
+        预期: AUC-PR 与 sklearn average_precision_score 差异 < 0.05
+        """
+        rng = np.random.RandomState(42)
+        n = 500
+        y_truth = np.zeros(n, dtype=int)
+        y_truth[480:] = 1
+
+        y_predict = np.zeros(n)
+        y_predict[:480] = rng.choice(
+            [0.0, 0.1, 0.3, 0.5, 0.7, 1.0, 2.0, 3.0, 5.0],
+            size=480,
+            p=[0.85, 0.03, 0.03, 0.03, 0.03, 0.01, 0.01, 0.005, 0.005],
+        )
+        y_predict[480:] = rng.uniform(0.5, 5.0, size=20)
+
+        op = BinaryClassificationCurve()
+        result = op.run((y_truth, y_predict))
+
+        from sklearn.metrics import average_precision_score
+        auc_pr_sk = average_precision_score(y_truth, y_predict)
+
+        assert abs(result.auc_pr - auc_pr_sk) < 0.05
+
+    def test_auc_roc_normal_unaffected_by_fix(self):
+        """
+        测试目的: 正常场景下 AUC-ROC 不受修复影响
+
+        背景: np.maximum.accumulate 对已单调递增的序列不产生任何改变，
+        因此正常场景的 AUC 应与修复前完全一致。
+
+        输入: 完美区分的分数
+        输出: BinaryClassificationCurveResult
+        预期: AUC-ROC 与 sklearn 一致，且 best_f1 接近 1.0
+        """
+        y_truth = np.array([0, 0, 0, 1, 1, 1])
+        y_predict = np.array([0.1, 0.2, 0.15, 0.9, 0.85, 0.95])
+
+        op = BinaryClassificationCurve()
+        result = op.run((y_truth, y_predict))
+
+        from sklearn.metrics import roc_auc_score
+        auc_sk = roc_auc_score(y_truth, y_predict)
+
+        assert abs(result.auc_roc - auc_sk) < 0.01
+        assert result.best_f1 > 0.99
+
 
 # ============================================================================
 # best 值验证测试

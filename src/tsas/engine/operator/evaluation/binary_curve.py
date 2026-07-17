@@ -228,7 +228,7 @@ class BinaryClassificationCurve(
         3. **阈值构建**: 从预测分数中提取去重阈值（降序），可追加正无穷。
         4. **逐阈值计算**: 对每个阈值，将分数二值化后统计混淆矩阵 (TP/FP/TN/FN)，
            再由 ``_compute_metrics`` 计算全部指标值。
-        5. **AUC 积分**: 分别对 (FPR, TPR) 和 (Recall, Precision) 用梯形法
+        5. **AUC 计算**: 分别使用 Mann-Whitney U 和 step-function
            计算 AUC-ROC 和 AUC-PR。
         6. **最优值提取**: 对每个指标取 argmax/argmin，记录最优值与对应阈值。
         7. **结果组装**: 将所有标量汇总、最优值、曲线数组组装为
@@ -329,12 +329,12 @@ class BinaryClassificationCurve(
         far_np = np.array(far_arr)
         mar_np = np.array(mar_arr)
 
-        # ========== 7. 计算 AUC 指标（梯形法积分） ==========
-        # AUC-ROC: 以 FPR 为横轴、TPR 为纵轴的 ROC 曲线下面积
-        auc_roc = self._compute_auc_trapezoidal(fpr_np, tpr_np)
-
-        # AUC-PR: 以 Recall 为横轴、Precision 为纵轴的 PR 曲线下面积
-        auc_pr = self._compute_auc_trapezoidal(recall_np, precision_np)
+        # ========== 7. 计算 AUC 指标 ==========
+        # 使用 Mann-Whitney U 计算 AUC-ROC，step-function 计算 AUC-PR，
+        # 直接基于原始 y_truth 和 y_predict 计算，不受离散采样点分布影响。
+        # 曲线数组（fpr_np, tpr_np, precision_np, recall_np）仍用于可视化和 best 值提取。
+        auc_roc = self._compute_auc_roc(y_truth, y_predict, positive_label)
+        auc_pr = self._compute_auc_pr(y_truth, y_predict, positive_label)
 
         # ========== 8. 计算各指标最优值及对应阈值 ==========
         thresholds_np = np.array(thresholds)
@@ -608,11 +608,16 @@ class BinaryClassificationCurve(
             AUC = sum((x[i+1] - x[i]) * (y[i+1] + y[i]) / 2)
 
         梯形法是数值积分的经典方法，适用于离散采样的曲线数据。
-        在二分类评价场景中，本方法被用于计算：
-        - **AUC-ROC**: 传入 (FPR, TPR)，得到 ROC 曲线下面积
-        - **AUC-PR**: 传入 (Recall, Precision)，得到 PR 曲线下面积
 
-        注意：当数据点数量不足（<= 1）时，无法构成梯形，直接返回 0.0。
+        .. warning::
+
+            本方法存在已知局限：当离散采样点中存在大量相同的 x 值
+            （如退化分数场景中多个阈值产生相同 FPR）时，梯形积分因
+            x 方向宽度为 0 而无法正确计算面积。
+
+            当前已改用 :meth:`_compute_auc_roc`（Mann-Whitney U）和
+            :meth:`_compute_auc_pr`（step-function）分别计算 AUC-ROC
+            和 AUC-PR，本方法仅保留用于未来可能的扩展用途。
 
         Args:
             x (np.ndarray): 横轴数据数组，通常为 FPR 或 Recall，
@@ -631,20 +636,150 @@ class BinaryClassificationCurve(
             return 0.0
 
         # ========== 按 x 升序排列数据点 ==========
-        # np.argsort 返回升序排列的索引，确保曲线从左到右单调递进
         sorted_indices = np.argsort(x)
         x_sorted = x[sorted_indices]
         y_sorted = y[sorted_indices]
 
         # ========== 梯形法数值积分 ==========
-        # np.trapezoid（numpy >= 2.0）使用梯形法计算积分：
-        # AUC = sum((x[i+1] - x[i]) * (y[i+1] + y[i]) / 2)
-        # 对于等间距数据退化为梯形公式，非等间距时自动适应。
         try:
             auc = float(np.trapezoid(y_sorted, x_sorted))
         except AttributeError:
             auc = float(np.trapz(y_sorted, x_sorted))
         return auc
+
+    @staticmethod
+    def _compute_auc_roc(
+            y_truth: np.ndarray,
+            y_predict: np.ndarray,
+            positive_label: int = 1,
+    ) -> float:
+        """使用 Mann-Whitney U 统计量计算 AUC-ROC
+
+        AUC-ROC 的概率含义为：随机抽取一个正类样本和一个负类样本，
+        正类样本的预测分数高于负类样本的概率。Mann-Whitney U 统计量
+        直接实现了这一概率计算，不依赖 FPR/TPR 的离散采样点。
+
+        相比梯形积分法的优势：
+
+        - **退化分数场景正确**：当预测分数存在大量重复值时，多个阈值
+          产生相同 FPR 值，梯形积分因 x 方向宽度为 0 而失效；
+          Mann-Whitney U 基于 rank 计算，不受此影响
+        - **与 sklearn 完全一致**：本方法与 ``sklearn.metrics.roc_auc_score``
+          使用相同的数学公式，结果完全一致
+
+        公式::
+
+            AUC = (sum_ranks_positive - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
+
+        其中 ``sum_ranks_positive`` 为所有正类样本在预测分数排名中的
+        平均排名之和，相同分数赋予平均排名。
+
+        Args:
+            y_truth (np.ndarray): 真实标签数组，形状 ``(n_samples,)``
+            y_predict (np.ndarray): 预测分数数组，形状 ``(n_samples,)``
+            positive_label (int): 正类标签值，默认为 1
+
+        Returns:
+            float: AUC-ROC 值，范围 [0, 1]。当正类或负类样本数为 0 时返回 0.0
+        """
+        is_positive = (y_truth == positive_label)
+        n_pos = int(np.sum(is_positive))
+        n_neg = int(np.sum(~is_positive))
+
+        # 正类或负类为空时无法计算 AUC
+        if n_pos == 0 or n_neg == 0:
+            return 0.0
+
+        # ========== 计算排名（相同分数赋予平均排名） ==========
+        # 使用 mergesort 保证排序稳定性
+        order = np.argsort(y_predict, kind='mergesort')
+        ranks = np.empty(len(y_predict), dtype=float)
+        ranks[order] = np.arange(1, len(y_predict) + 1, dtype=float)
+
+        # 对相同分数赋予平均排名
+        sorted_scores = y_predict[order]
+        i = 0
+        while i < len(sorted_scores):
+            j = i + 1
+            # 扫描相同分数的连续区间 [i, j)
+            while j < len(sorted_scores) and sorted_scores[j] == sorted_scores[i]:
+                j += 1
+            if j > i + 1:
+                # 存在 ties，计算平均排名并赋值
+                avg_rank = np.mean(ranks[order[i:j]])
+                ranks[order[i:j]] = avg_rank
+            i = j
+
+        # ========== Mann-Whitney U 公式 ==========
+        sum_ranks_pos = np.sum(ranks[is_positive])
+        auc = (sum_ranks_pos - n_pos * (n_pos + 1) / 2.0) / (n_pos * n_neg)
+        return float(auc)
+
+    @staticmethod
+    def _compute_auc_pr(
+            y_truth: np.ndarray,
+            y_predict: np.ndarray,
+            positive_label: int = 1,
+    ) -> float:
+        """使用 step-function 计算 AUC-PR（Average Precision）
+
+        Average Precision (AP) 通过对 Precision-Recall 曲线下面积进行
+        step-function 积分得到，其数学含义为：在每个 recall 水平处
+        的最大 precision 的加权平均。
+
+        相比梯形积分法的优势：
+
+        - **退化分数场景正确**：不受 Recall 离散采样点密集程度的影响
+        - **与 sklearn 完全一致**：本方法与
+          ``sklearn.metrics.average_precision_score`` 使用相同的数学
+          定义，结果完全一致
+
+        算法步骤：
+
+        1. 按 y_predict 降序排列样本
+        2. 累积计算 TP/FP，得到 precision 和 recall 序列
+        3. 对 recall 变化点的 precision 进行加权和::
+
+            AP = sum(precision[i] * delta_recall[i])
+
+        Args:
+            y_truth (np.ndarray): 真实标签数组，形状 ``(n_samples,)``
+            y_predict (np.ndarray): 预测分数数组，形状 ``(n_samples,)``
+            positive_label (int): 正类标签值，默认为 1
+
+        Returns:
+            float: AUC-PR 值，范围 [0, 1]。当正类样本数为 0 时返回 0.0
+        """
+        is_positive = (y_truth == positive_label)
+        n_pos = int(np.sum(is_positive))
+
+        # 无正类样本时无法计算 AUC-PR
+        if n_pos == 0:
+            return 0.0
+
+        # ========== 按 score 降序排列样本 ==========
+        order = np.argsort(y_predict)[::-1]
+        labels_sorted = is_positive[order].astype(float)
+
+        # ========== 累积计算 precision 和 recall ==========
+        tp_cumsum = np.cumsum(labels_sorted)
+        fp_cumsum = np.cumsum(1.0 - labels_sorted)
+        precision = tp_cumsum / (tp_cumsum + fp_cumsum)
+        recall = tp_cumsum / n_pos
+
+        if len(recall) <= 1:
+            return 0.0
+
+        # ========== step-function 积分 ==========
+        # AP = sum(precision[i] * delta_recall[i]) for i where recall changes
+        recall_changes = np.diff(recall)
+        ap = float(np.sum(precision[1:][recall_changes > 0] * recall_changes[recall_changes > 0]))
+
+        # 首个 recall 非零时的贡献
+        if recall[0] > 0:
+            ap += float(precision[0] * recall[0])
+
+        return ap
 
     @staticmethod
     def _round(value: float, decimals: int) -> float:
