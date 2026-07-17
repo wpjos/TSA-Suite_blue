@@ -38,6 +38,7 @@ CLI 公共工具模块
 """
 
 import argparse
+import sys
 
 import pandas as pd
 
@@ -47,6 +48,10 @@ from tsas.engine.operator.cli.registry import OperatorRegistry
 
 __all__ = [
     'extract_encoding_arg',
+    'build_list_subparser',
+    'build_show_subparser',
+    'handle_list',
+    'handle_show',
     'build_help_subparser',
     'handle_help',
     'instantiate_operator',
@@ -91,16 +96,110 @@ def extract_encoding_arg(args: list[str] | None) -> tuple[str | None, list[str]]
     return encoding, remaining
 
 
+# ============================================================================
+# list / show 子命令（推荐使用）
+# ============================================================================
+
+def build_list_subparser(
+        subparsers: argparse._SubParsersAction,
+) -> argparse.ArgumentParser:
+    """构建 ``list`` 子命令解析器
+
+    创建一个 ``list`` 子解析器，不接受任何参数，列出当前模块下所有可用算子。
+
+    Args:
+        subparsers (argparse._SubParsersAction):
+            由 ``argparse.ArgumentParser.add_subparsers()`` 创建的
+            子解析器容器
+
+    Returns:
+        argparse.ArgumentParser: 配置好的 ``list`` 子解析器
+    """
+    list_parser = subparsers.add_parser('list', help='列出所有可用算子')
+    return list_parser
+
+
+def build_show_subparser(
+        subparsers: argparse._SubParsersAction,
+) -> argparse.ArgumentParser:
+    """构建 ``show`` 子命令解析器
+
+    创建一个 ``show`` 子解析器，接受 1 个或多个算子名称作为位置参数
+    （``nargs='+'``），输出每个算子的详细帮助文档。
+
+    Args:
+        subparsers (argparse._SubParsersAction):
+            由 ``argparse.ArgumentParser.add_subparsers()`` 创建的
+            子解析器容器
+
+    Returns:
+        argparse.ArgumentParser: 配置好的 ``show`` 子解析器
+    """
+    show_parser = subparsers.add_parser('show', help='查看指定算子的详细信息')
+    show_parser.add_argument(
+        'operator_names',
+        nargs='+',
+        help='算子名称（至少指定一个，可指定多个以空格分隔）',
+    )
+    return show_parser
+
+
+def handle_list(registry: OperatorRegistry) -> None:
+    """处理 ``list`` 子命令 — 输出所有算子的列表概览
+
+    Args:
+        registry (OperatorRegistry): 已执行 ``discover()`` 的算子注册中心实例
+    """
+    operators = registry.list_all()
+    print(generate_list(operators))
+
+
+def handle_show(
+        registry: OperatorRegistry,
+        operator_names: list[str],
+) -> None:
+    """处理 ``show`` 子命令 — 输出指定算子的详细帮助
+
+    根据指定的算子名称数量，分发到单算子详情模式或批量详情模式：
+
+    - 单个名称时：输出指定算子的详细帮助
+    - 多个名称时：依次输出每个算子的详细帮助，用分隔线隔开
+
+    Args:
+        registry (OperatorRegistry):
+            已执行 ``discover()`` 的算子注册中心实例
+        operator_names (list[str]):
+            算子名称列表，至少包含一个名称
+    """
+    if len(operator_names) == 1:
+        # 单算子详情模式
+        cls = registry.get(operator_names[0])
+        print(generate_detail(cls))
+    else:
+        # 批量详情模式：依次输出每个算子详情，用分隔线隔开
+        for i, name in enumerate(operator_names):
+            if i > 0:
+                print("\n---\n")
+            cls = registry.get(name)
+            print(generate_detail(cls))
+
+
+# ============================================================================
+# help 子命令（已废弃别名，转发到 list / show）
+# ============================================================================
+
 def build_help_subparser(
     subparsers: argparse._SubParsersAction,
 ) -> argparse.ArgumentParser:
-    """构建标准的 ``help`` 子命令解析器
+    """构建 ``help`` 子命令解析器（已废弃，保留为别名）
 
-    创建一个 ``help`` 子解析器，接受一个可选的位置参数 ``operator_name``：
-    不指定时列出所有可用算子，指定时显示该算子的详细帮助文档。
+    .. deprecated:: 1.1.0
 
-    三个 CLI 子模块（detection、evaluation、feature_construction）的
-    ``help`` 子解析器结构完全一致，统一由此函数构建。
+        请使用 ``list`` 查看算子列表，使用 ``show <算子名称>`` 查看算子详情。
+        ``help`` 子命令将于 1.1.0 版本移除。
+
+    参数结构与原有一致（``nargs='*'``），运行时会输出废弃提示
+    后转发到 ``list`` 或 ``show`` 的行为。
 
     Args:
         subparsers (argparse._SubParsersAction):
@@ -110,41 +209,51 @@ def build_help_subparser(
     Returns:
         argparse.ArgumentParser: 配置好的 ``help`` 子解析器
     """
-    help_parser = subparsers.add_parser('help', help='查看算子帮助信息')
+    help_parser = subparsers.add_parser(
+        'help',
+        help='[已废弃] 查看- 列出算子请用 list，详情请用 show',
+    )
     help_parser.add_argument(
-        'operator_name',
-        nargs='?',
+        'operator_names',
+        nargs='*',
         default=None,
-        help='算子名称（不指定时列出所有可用算子）',
+        help='算子名称（已废弃：不指定时列出所有算子，指定时显示详情）',
     )
     return help_parser
 
 
 def handle_help(
     registry: OperatorRegistry,
-    operator_name: str | None,
+        operator_names: list[str] | None,
 ) -> None:
-    """统一处理 ``help`` 子命令
+    """处理 ``help`` 子命令（已废弃别名）
 
-    根据是否指定算子名称，分发到列表模式或详情模式：
+    .. deprecated:: 1.1.0
 
-    - ``operator_name`` 为 ``None`` 时：调用 ``generate_list`` 输出所有算子列表
-    - ``operator_name`` 非 ``None`` 时：调用 ``generate_detail`` 输出指定算子的详细帮助
+        请使用 ``list`` 查看算子列表，使用 ``show <算子名称>`` 查看算子详情。
+
+    输出废弃提示到 stderr（不干扰 stdout 管道），然后根据参数数量
+    转发到 :func:`handle_list` 或 :func:`handle_show` 的行为。
 
     Args:
         registry (OperatorRegistry):
             已执行 ``discover()`` 的算子注册中心实例
-        operator_name (str | None):
-            目标算子名称。为 ``None`` 时输出所有算子的列表概览
+        operator_names (list[str] | None):
+            算子名称列表。为空时等同 ``list``，非空时等同 ``show``。
     """
-    if operator_name is None:
-        # 列表模式：输出所有算子的名称和简介
-        operators = registry.list_all()
-        print(generate_list(operators))
+    # 废弃提示输出到 stderr，不干扰 stdout 管道（程序化使用不受影响）
+    print(
+        "[提示] 'help' 子命令已废弃，请使用 'list' 查看算子列表，"
+        "使用 'show <算子名称>' 查看算子详情。将于 1.1.0 版本移除。",
+        file=sys.stderr,
+    )
+
+    if not operator_names:
+        # 转发到 list 行为
+        handle_list(registry)
     else:
-        # 详情模式：输出指定算子的完整帮助文档
-        cls = registry.get(operator_name)
-        print(generate_detail(cls))
+        # 转发到 show 行为
+        handle_show(registry, operator_names)
 
 
 def instantiate_operator(

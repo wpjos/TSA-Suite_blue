@@ -121,7 +121,7 @@ def generate_list(operators: dict[str, type]) -> str:
         lines.append("")
 
     # ---- 统计汇总 ----
-    lines.append(f"共 {len(operators)} 个算子。使用 `help <算子名称>` 查看详细信息。")
+    lines.append(f"共 {len(operators)} 个算子。使用 `show <算子名称>` 查看详细信息。")
     return '\n'.join(lines)
 
 

@@ -36,10 +36,12 @@ import numpy as np
 import pandas as pd
 
 from tsas.engine.operator.base import BaseOperator, LearnableOperatorMixin
-from tsas.engine.operator.cli.common import (auto_suffix, build_help_subparser, extract_encoding_arg,
-                                             handle_help, instantiate_operator)
+from tsas.engine.operator.cli.common import (auto_suffix, build_help_subparser, build_list_subparser,
+                                             build_show_subparser,
+                                             extract_encoding_arg, handle_help, handle_list, handle_show,
+                                             instantiate_operator)
 from tsas.engine.operator.cli.config_loader import load_config
-from tsas.engine.operator.cli.io import ensure_encoding, load_chunk_ids, load_data, save_data
+from tsas.engine.operator.cli.io import ensure_encoding, load_data, save_data
 from tsas.engine.operator.cli.registry import OperatorRegistry
 from tsas.engine.operator.forecasting.base import BaseForecaster
 
@@ -81,7 +83,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest='command', help='子命令')
 
-    # ---- help 子命令（委托公共函数构建）----
+    # ---- list / show / help 子命令 ----
+    build_list_subparser(subparsers)
+    build_show_subparser(subparsers)
     build_help_subparser(subparsers)
 
     # ---- run 子命令 ----
@@ -101,22 +105,8 @@ def _build_parser() -> argparse.ArgumentParser:
     fit_parser.add_argument('--target', '-t', required=True, help='目标变量列名')
     fit_parser.add_argument('--config', '-c', required=True, help='算子配置文件路径')
     fit_parser.add_argument('--save', default=None, help='保存训练模型的目录路径')
-    fit_parser.add_argument('--chunk-ids', default=None,
-                            help='chunk_ids 文件路径（CSV 单列表，无表头）')
 
     return parser
-
-
-def _handle_help(registry: OperatorRegistry, operator_name: str | None) -> None:
-    """处理 help 子命令
-
-    委托公共函数 ``handle_help`` 完成帮助文档输出。
-
-    Args:
-        registry (OperatorRegistry): 算子注册中心
-        operator_name (str | None): 算子名称，``None`` 时列出全部
-    """
-    handle_help(registry, operator_name)
 
 
 def _instantiate_operator(
@@ -268,15 +258,6 @@ def _handle_fit(registry: OperatorRegistry, args: argparse.Namespace) -> None:
     # 选择输入列
     op_input = _select_columns(df, input_columns)
 
-    # 加载并设置 chunk_ids（若提供）
-    if args.chunk_ids:
-        chunk_ids = load_chunk_ids(args.chunk_ids)
-        if len(chunk_ids) != len(df):
-            raise ValueError(
-                f"chunk_ids 长度 {len(chunk_ids)} 与输入数据行数 {len(df)} 不一致"
-            )
-        op_instance.set_chunk_ids(chunk_ids)
-
     # 构造目标列
     if target_column and target_column in df.columns:
         op_target = df[[target_column]]
@@ -323,8 +304,12 @@ def main(args: list[str] | None = None) -> None:
     # 创建注册中心
     registry = create_registry()
 
-    if parsed.command == 'help':
-        _handle_help(registry, parsed.operator_name)
+    if parsed.command == 'list':
+        handle_list(registry)
+    elif parsed.command == 'show':
+        handle_show(registry, parsed.operator_names)
+    elif parsed.command == 'help':
+        handle_help(registry, parsed.operator_names)
     elif parsed.command == 'run':
         _handle_run(registry, parsed)
     elif parsed.command == 'fit':

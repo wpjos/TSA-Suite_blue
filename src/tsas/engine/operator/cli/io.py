@@ -4,21 +4,27 @@
 数据输入输出模块
 
 提供统一的数据加载和保存接口，根据文件后缀自动选择格式。
-当前支持 CSV 格式，预留 TSV、MAT、HDF5 等格式的扩展能力。
 
-支持格式:
+表格数据支持格式（见 :func:`load_data` / :func:`save_data`）:
     - ``.csv``: CSV 逗号分隔值
-    - ``.tsv``: TSV 制表符分隔值（预留）
+    - ``.tsv``: TSV 制表符分隔值
     - ``.mat``: MATLAB MAT 文件（预留）
     - ``.h5`` / ``.hdf5``: HDF5 文件（预留）
 
+结构化（字典）数据支持格式（见 :func:`save_structured`）:
+    - ``.json``: JSON 格式
+    - ``.yaml`` / ``.yml``: YAML 格式
+
 使用示例::
 
-    from tsas.engine.operator.cli.io import load_data, save_data, save_json
+    from tsas.engine.operator.cli.io import (
+        load_data, save_data, save_json, save_structured,
+    )
 
     df = load_data("input.csv")
     save_data(df, "output.csv")
     save_json({"f1": 0.85}, "result.json")
+    save_structured({"f1": 0.85}, "result.yaml")
 """
 
 import json
@@ -26,15 +32,15 @@ import os
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
+import yaml
 
 __all__ = [
     'load_data',
     'save_data',
     'save_json',
+    'save_structured',
     'ensure_encoding',
-    'load_chunk_ids',
 ]
 
 # 支持的数据文件后缀 → 加载/保存函数的映射键
@@ -80,32 +86,6 @@ def load_data(path: str | Path) -> pd.DataFrame:
             f"不支持的文件格式 '{suffix}'。"
             f"当前支持的格式: {sorted(_SUPPORTED_EXTENSIONS)}"
         )
-
-
-def load_chunk_ids(path: str | Path) -> np.ndarray:
-    """加载 chunk_ids 文件。
-
-    chunk_ids 文件为 CSV 格式，单列表，无表头，每行一个整数 chunk 编号。
-
-    Args:
-        path (str | Path): chunk_ids 文件路径
-
-    Returns:
-        np.ndarray: 一维整型数组
-
-    Raises:
-        FileNotFoundError: 文件不存在时
-        ValueError: 文件内容不是单列时
-    """
-    path = Path(path)
-    if not path.exists():
-        raise FileNotFoundError(f"chunk_ids 文件不存在: {path}")
-
-    df = pd.read_csv(path, header=None)
-    if df.shape[1] != 1:
-        raise ValueError(f"chunk_ids 文件必须是单列，当前列数为 {df.shape[1]}")
-
-    return df.iloc[:, 0].to_numpy()
 
 
 def save_data(df: pd.DataFrame, path: str | Path) -> None:
@@ -164,18 +144,75 @@ def save_json(data: dict, path: str | Path) -> None:
         json.dump(data, f, indent=2, ensure_ascii=False, default=str)
 
 
-def ensure_encoding(encoding: str | None = None) -> None:
+def save_structured(data: dict, path: str | Path) -> None:
     """
-    确保终端输出使用正确的编码
+    根据文件后缀自动保存结构化（字典）数据为 JSON 或 YAML 文件
 
-    当用户通过 ``--encoding`` 参数指定编码时，使用用户指定的编码。
-    当未指定时，自动探测终端编码：若当前已为 UTF-8 则不做处理，
-    否则尝试将 stdout/stderr 重配置为 UTF-8，并在 Windows 上设置控制台代码页。
+    支持的后缀（大小写不敏感）：
+        - ``.json``: JSON 格式（2 空格缩进，保留非 ASCII 字符）
+        - ``.yaml`` / ``.yml``: YAML 格式（block 风格，保留非 ASCII 字符，保持键插入顺序）
+
+    自动创建目标目录（如不存在）。YAML 输出前会先经 JSON 往返标准化，
+    将 numpy/torch 等非原生类型统一转换为 JSON 兼容的 Python 原生类型，
+    保证两种格式输出内容语义一致。
+
+    Args:
+        data (dict): 要保存的字典数据
+        path (str | Path): 输出文件路径
+
+    Raises:
+        ValueError: 文件后缀既非 JSON 也非 YAML 时
+    """
+    path = Path(path)
+
+    # 自动创建目标目录
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    suffix = path.suffix.lower()
+
+    if suffix == '.json':
+        # JSON：与 save_json 行为一致
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+    elif suffix in ('.yaml', '.yml'):
+        # YAML：先经 JSON 往返标准化，消除 numpy/torch 等非原生类型，
+        # 避免 yaml.safe_dump 遇到非标准类型时抛出 RepresenterError
+        normalized = json.loads(json.dumps(data, default=str))
+        with open(path, 'w', encoding='utf-8') as f:
+            yaml.safe_dump(
+                normalized, f,
+                allow_unicode=True,  # 保留中文等非 ASCII 字符
+                default_flow_style=False,  # 使用 block 风格，更易读
+                sort_keys=False,  # 保持字典插入顺序
+                indent=2,
+            )
+    else:
+        raise ValueError(
+            f"不支持的结构化输出格式 '{suffix}'，仅支持 .json / .yaml / .yml"
+        )
+
+
+def ensure_encoding(encoding: str | None = None) -> None:
+    """确保终端输出使用正确的编码
+
+    处理流程：
+
+    1. 确定目标编码（用户指定或自动探测为 ``utf-8``）
+    2. 对 ``sys.stdout`` 和 ``sys.stderr`` 分别处理：
+       - 检查当前编码是否已是目标编码 → 是则跳过
+       - 尝试 ``reconfigure`` → 验证是否生效
+       - 验证失败 → 用 ``io.TextIOWrapper`` 包装底层 buffer 做兜底替换
+       - 兜底也失败 → 放弃（彻底无法修复）
+
+    Windows 环境额外步骤：自动探测模式下执行 ``chcp 65001``
+    将控制台代码页设为 UTF-8。
 
     Args:
         encoding (str | None): 用户指定的编码名称，如 ``'utf-8'``、``'gbk'``。
             传入 ``None`` 时启用自动探测模式，默认目标编码为 UTF-8。
     """
+    import io
+
     target = encoding
 
     if target is None:
@@ -191,10 +228,38 @@ def ensure_encoding(encoding: str | None = None) -> None:
         if sys.platform == 'win32':
             os.system('chcp 65001 >nul 2>&1')
 
-    # 重配置 stdout/stderr 的编码
-    for stream in [sys.stdout, sys.stderr]:
+    # 对 stdout 和 stderr 分别处理编码重配置
+    for stream_name, stream in [('stdout', sys.stdout), ('stderr', sys.stderr)]:
+        # 检查当前编码是否已是目标编码
+        current_enc = getattr(stream, 'encoding', '') or ''
+        if target.lower() in current_enc.lower():
+            continue  # 已是目标编码
+
+        # 第一步：尝试 reconfigure
         if hasattr(stream, 'reconfigure'):
             try:
                 stream.reconfigure(encoding=target, errors='replace')
             except (LookupError, UnicodeError, AttributeError):
                 pass
+
+        # 第二步：验证 reconfigure 是否真的生效
+        current_enc = getattr(stream, 'encoding', '') or ''
+        if target.lower() in current_enc.lower():
+            continue  # reconfigure 成功
+
+        # 第三步：reconfigure 未生效，用 TextIOWrapper 兜底替换
+        try:
+            buffer = getattr(stream, 'buffer', None)
+            if buffer is not None:
+                new_stream = io.TextIOWrapper(
+                    buffer,
+                    encoding=target,
+                    errors='replace',
+                    line_buffering=getattr(stream, 'line_buffering', False),
+                )
+                if stream_name == 'stdout':
+                    sys.stdout = new_stream
+                else:
+                    sys.stderr = new_stream
+        except Exception:
+            pass  # 彻底无法修复，放弃

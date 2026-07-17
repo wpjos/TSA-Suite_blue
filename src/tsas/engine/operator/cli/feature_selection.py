@@ -13,8 +13,9 @@ import pandas as pd
 from pydantic import BaseModel
 
 from tsas.engine.operator.base import BaseOperator, LearnableOperatorMixin, NumericData
-from tsas.engine.operator.cli.common import build_help_subparser, extract_encoding_arg, handle_help, \
-    instantiate_operator
+from tsas.engine.operator.cli.common import (build_help_subparser, build_list_subparser, build_show_subparser,
+                                             extract_encoding_arg, handle_help, handle_list, handle_show,
+                                             instantiate_operator)
 from tsas.engine.operator.cli.config_loader import load_config
 from tsas.engine.operator.cli.io import ensure_encoding, load_data, save_data, save_json
 from tsas.engine.operator.cli.registry import OperatorRegistry
@@ -48,6 +49,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='feature_selection', description='特征选择器 CLI')
     subparsers = parser.add_subparsers(dest='command', required=True)
 
+    build_list_subparser(subparsers)
+    build_show_subparser(subparsers)
     build_help_subparser(subparsers)
 
     run_parser = subparsers.add_parser('run', help='运行特征选择器')
@@ -107,19 +110,6 @@ def _load_operator(config_path: str, registry: OperatorRegistry, load_path: str 
     return instantiate_operator(op_config, registry)
 
 
-def _handle_help(registry: OperatorRegistry, args: argparse.Namespace) -> None:
-    """处理帮助文档生成。
-
-    Args:
-        registry (OperatorRegistry): 特征选择器注册中心。
-        args (argparse.Namespace): 命令行参数。
-
-    Returns:
-        None: 本函数直接输出或写入文档。
-    """
-    handle_help(registry, args.operator_name)
-
-
 def _handle_fit(registry: OperatorRegistry, args: argparse.Namespace) -> None:
     """处理选择器训练。
 
@@ -171,8 +161,12 @@ def main(args: list[str] | None = None) -> None:
     ensure_encoding(encoding)
     parsed = _build_parser().parse_args(remaining)
     registry = create_registry()
-    if parsed.command == 'help':
-        _handle_help(registry, parsed)
+    if parsed.command == 'list':
+        handle_list(registry)
+    elif parsed.command == 'show':
+        handle_show(registry, parsed.operator_names)
+    elif parsed.command == 'help':
+        handle_help(registry, parsed.operator_names)
     elif parsed.command == 'fit':
         _handle_fit(registry, parsed)
     elif parsed.command == 'run':

@@ -4,7 +4,8 @@
 评价指标算子命令行入口
 
 提供评价指标算子的命令行接口，支持 help 和 run 两个子命令。
-支持一次性调用多个评价算子，输出为 JSON 格式。
+支持一次性调用多个评价算子，结果可输出为 JSON 或 YAML 格式（由 ``--output`` / ``--scalars-output``
+的文件后缀决定：``.json`` 输出 JSON，``.yaml`` / ``.yml`` 输出 YAML）。
 
 子命令:
     - ``help [算子名称]``: 查看所有算子列表或指定算子的详细帮助
@@ -28,11 +29,11 @@
         truth_columns: ["label"]
         predict_columns: ["predict"]
 
-输出 JSON 示例::
+输出示例（以 JSON 为例，YAML 后缀时输出等价的 YAML 结构）::
 
     {
       "results": {
-        "binary_classification_metric": {
+        "binary_classification": {
           "result": {"f1": 0.85, "far": 0.12},
           "main_scores": {"f1": 0.85, "far": 0.12}
         }
@@ -46,10 +47,11 @@ import sys
 import numpy as np
 from pydantic import BaseModel
 
-from tsas.engine.operator.cli.common import (build_help_subparser, extract_encoding_arg, handle_help,
+from tsas.engine.operator.cli.common import (build_help_subparser, build_list_subparser, build_show_subparser,
+                                             extract_encoding_arg, handle_help, handle_list, handle_show,
                                              instantiate_operator)
 from tsas.engine.operator.cli.config_loader import load_config
-from tsas.engine.operator.cli.io import ensure_encoding, load_data, save_json
+from tsas.engine.operator.cli.io import ensure_encoding, load_data, save_structured
 from tsas.engine.operator.cli.registry import OperatorRegistry
 
 __all__ = [
@@ -91,28 +93,21 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest='command', help='子命令')
 
-    # ---- help 子命令（委托公共函数构建）----
+    # ---- list / show / help 子命令 ----
+    build_list_subparser(subparsers)
+    build_show_subparser(subparsers)
     build_help_subparser(subparsers)
 
     # ---- run 子命令 ----
     run_parser = subparsers.add_parser('run', help='执行评价指标计算')
     run_parser.add_argument('--input', '-i', required=True, help='输入数据文件路径')
-    run_parser.add_argument('--output', '-o', required=True, help='输出结果 JSON 文件路径')
+    run_parser.add_argument('--output', '-o', default=None,
+                            help='完整结果输出文件路径（支持 .json / .yaml / .yml 后缀，含曲线数组等全部字段）')
+    run_parser.add_argument('--scalars-output', default=None,
+                            help='标量结果输出文件路径（支持 .json / .yaml / .yml 后缀，剥离曲线数组，仅保留标量字段）')
     run_parser.add_argument('--config', '-c', required=True, help='评价管线配置文件路径')
 
     return parser
-
-
-def _handle_help(registry: OperatorRegistry, operator_name: str | None) -> None:
-    """处理 help 子命令
-
-    委托公共函数 ``handle_help`` 完成帮助文档输出。
-
-    Args:
-        registry (OperatorRegistry): 算子注册中心
-        operator_name (str | None): 算子名称，``None`` 时列出全部
-    """
-    handle_help(registry, operator_name)
 
 
 def _resolve_output_key(
@@ -145,14 +140,16 @@ def _resolve_output_key(
     return key
 
 
-def _result_to_dict(result) -> dict | float:
-    """
-    将算子运行结果转换为可 JSON 序列化的字典
+def _result_to_dict(result, scalars_only: bool = False) -> dict | float:
+    """将算子运行结果转换为可 JSON 序列化的字典
 
     支持 float、Pydantic BaseModel、ndarray 等类型。
+    当 ``scalars_only=True`` 时，剥离 BaseModel 中的 ``list`` 类型字段
+    （曲线数组如 thresholds、tpr、fpr 等），仅保留标量字段。
 
     Args:
         result: 算子运行结果
+        scalars_only (bool): 是否仅保留标量字段（剥离 list 类型），默认 False
 
     Returns:
         dict | float: 可序列化的结果
@@ -160,11 +157,15 @@ def _result_to_dict(result) -> dict | float:
     if isinstance(result, float | int):
         return result
     elif isinstance(result, BaseModel):
-        return result.model_dump()
+        d = result.model_dump()
+        if scalars_only:
+            # 递归剥离 list 类型字段（曲线数组）
+            d = {k: v for k, v in d.items() if not isinstance(v, list)}
+        return d
     elif isinstance(result, np.ndarray):
         return result.tolist()
     elif isinstance(result, dict):
-        return {k: _result_to_dict(v) for k, v in result.items()}
+        return {k: _result_to_dict(v, scalars_only=scalars_only) for k, v in result.items()}
     else:
         return str(result)
 
@@ -179,6 +180,11 @@ def _handle_run(registry: OperatorRegistry, args: argparse.Namespace) -> None:
         registry (OperatorRegistry): 算子注册中心
         args (argparse.Namespace): 解析后的命令行参数
     """
+    # 校验：至少指定一个输出路径
+    if not args.output and not args.scalars_output:
+        print("错误: 至少需要指定 --output 或 --scalars-output 中的一个")
+        sys.exit(1)
+
     # 加载数据和配置
     df = load_data(args.input)
     config = load_config(args.config)
@@ -188,6 +194,7 @@ def _handle_run(registry: OperatorRegistry, args: argparse.Namespace) -> None:
         raise ValueError("配置文件中 'operators' 不能为空")
 
     results = {}
+    scalars_results = {}
     used_keys: set[str] = set()
 
     for i, op_spec in enumerate(operators_config):
@@ -222,9 +229,13 @@ def _handle_run(registry: OperatorRegistry, args: argparse.Namespace) -> None:
         # 执行算子
         run_result = op_instance.run(op_input)
 
-        # 构造结果条目
+        # 构造完整结果条目
         entry = {
             'result': _result_to_dict(run_result),
+        }
+        # 构造标量结果条目（剥离曲线数组）
+        scalars_entry = {
+            'result': _result_to_dict(run_result, scalars_only=True),
         }
 
         # 提取 main_scores（如果算子支持）
@@ -233,17 +244,24 @@ def _handle_run(registry: OperatorRegistry, args: argparse.Namespace) -> None:
                 scores = op_instance.scores(op_input)
                 if scores is not None:
                     entry['main_scores'] = scores
+                    scalars_entry['main_scores'] = scores
             except Exception:
                 pass
 
         # 确定输出 key
         output_key = _resolve_output_key(op_spec, op_name, used_keys)
         results[output_key] = entry
+        scalars_results[output_key] = scalars_entry
 
-    # 输出
-    output_data = {'results': results}
-    save_json(output_data, args.output)
-    print(f"评价完成，结果已保存至: {args.output}")
+    # ---- 输出阶段 ----
+    # 完整结果输出（按文件后缀自动选择 JSON / YAML 格式）
+    if args.output:
+        save_structured({'results': results}, args.output)
+        print(f"评价完成，完整结果已保存至: {args.output}")
+    # 标量结果输出（按文件后缀自动选择 JSON / YAML 格式）
+    if args.scalars_output:
+        save_structured({'results': scalars_results}, args.scalars_output)
+        print(f"标量结果已保存至: {args.scalars_output}")
 
 
 def main(args: list[str] | None = None) -> None:
@@ -269,8 +287,12 @@ def main(args: list[str] | None = None) -> None:
     # 创建注册中心
     registry = create_registry()
 
-    if parsed.command == 'help':
-        _handle_help(registry, parsed.operator_name)
+    if parsed.command == 'list':
+        handle_list(registry)
+    elif parsed.command == 'show':
+        handle_show(registry, parsed.operator_names)
+    elif parsed.command == 'help':
+        handle_help(registry, parsed.operator_names)
     elif parsed.command == 'run':
         _handle_run(registry, parsed)
 

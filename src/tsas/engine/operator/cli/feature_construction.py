@@ -39,7 +39,9 @@ import numpy as np
 import pandas as pd
 
 from tsas.engine.operator.base import BaseOperator, LearnableOperatorMixin
-from tsas.engine.operator.cli.common import (auto_suffix, build_help_subparser, extract_encoding_arg, handle_help,
+from tsas.engine.operator.cli.common import (auto_suffix, build_help_subparser, build_list_subparser,
+                                             build_show_subparser,
+                                             extract_encoding_arg, handle_help, handle_list, handle_show,
                                              instantiate_operator)
 from tsas.engine.operator.cli.config_loader import load_config
 from tsas.engine.operator.cli.io import ensure_encoding, load_data, save_data
@@ -84,7 +86,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest='command', help='子命令')
 
-    # ---- help 子命令（委托公共函数构建）----
+    # ---- list / show / help 子命令 ----
+    build_list_subparser(subparsers)
+    build_show_subparser(subparsers)
     build_help_subparser(subparsers)
 
     # ---- run 子命令 ----
@@ -105,18 +109,6 @@ def _build_parser() -> argparse.ArgumentParser:
     fit_parser.add_argument('--save', default=None, help='保存训练模型的目录路径')
 
     return parser
-
-
-def _handle_help(registry: OperatorRegistry, operator_name: str | None) -> None:
-    """处理 help 子命令
-
-    委托公共函数 ``handle_help`` 完成帮助文档输出。
-
-    Args:
-        registry (OperatorRegistry): 算子注册中心
-        operator_name (str | None): 算子名称，``None`` 时列出全部
-    """
-    handle_help(registry, operator_name)
 
 
 def _instantiate_operators(
@@ -327,8 +319,12 @@ def main(args: list[str] | None = None) -> None:
     # 创建注册中心
     registry = create_registry()
 
-    if parsed.command == 'help':
-        _handle_help(registry, parsed.operator_name)
+    if parsed.command == 'list':
+        handle_list(registry)
+    elif parsed.command == 'show':
+        handle_show(registry, parsed.operator_names)
+    elif parsed.command == 'help':
+        handle_help(registry, parsed.operator_names)
     elif parsed.command == 'run':
         _handle_run(registry, parsed)
     elif parsed.command == 'fit':
