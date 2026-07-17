@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 """
 CICADA 检测算子单元测试
@@ -23,12 +24,14 @@ from pandas import DataFrame
 from pydantic import ValidationError
 
 from tsas.engine.operator.detection.cicada import (
+    CICADAExpertName,
     CICADAPredictor,
     CICADAPredictorConfig,
     CICADAScorer,
     CICADAScorerConfig,
     CICADAScorerExtraOutput,
 )
+
 
 # ============================================================================
 # 公共测试数据
@@ -63,7 +66,11 @@ def test_df(test_data):
 
 
 def _make_predictor(**overrides):
-    """创建最小配置的 CICADAPredictor（用于加速测试）"""
+    """创建最小配置的 CICADAPredictor（用于加速测试）
+
+    CICADA 本质为表格异常检测算子（无滑动窗口），win_size 和 stride
+    在内部固定为 1，不在 Config 中暴露。
+    """
     defaults = dict(
         name=["MLP"],
         num_channels=3,
@@ -89,11 +96,18 @@ class TestCICADAPredictorConfig:
         """
         目的：验证 Config 默认值与 CICADA 一致
         输入：无参数构造
-        预期：所有默认值正确
+        预期：所有默认值正确；name 字段为 CICADAExpertName 枚举列表
         """
         cfg = CICADAPredictorConfig()
-        assert cfg.name == ["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"]
-        assert cfg.stride == 1
+        # name 默认值为 4 种梯度专家的枚举列表
+        assert cfg.name == [
+            CICADAExpertName.GradPCA,
+            CICADAExpertName.GradKPCA,
+            CICADAExpertName.GradFreKPCA,
+            CICADAExpertName.GradSubPCA,
+        ]
+        # 枚举与字符串可比较
+        assert [str(n) for n in cfg.name] == ["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"]
         assert cfg.num_channels is None
         assert cfg.batch_size == 256
         assert cfg.epochs == 60
@@ -103,6 +117,35 @@ class TestCICADAPredictorConfig:
         assert cfg.infer_mode == "offline"
         assert cfg.th == 0.98
 
+    def test_config_name_accepts_string_values(self):
+        """
+        目的：验证 name 字段接受原始字符串（Pydantic 自动转换为枚举）
+        输入：name=["MLP", "GradPCA"]
+        预期：cfg.name 为对应的 CICADAExpertName 枚举列表
+        """
+        cfg = CICADAPredictorConfig(name=["MLP", "GradPCA"])
+        assert cfg.name == [CICADAExpertName.MLP, CICADAExpertName.GradPCA]
+
+    def test_config_name_rejects_invalid_expert(self):
+        """
+        目的：验证 name 字段拒绝不在枚举范围内的专家名称
+        输入：name=["NonExistentExpert"]
+        预期：ValidationError
+        """
+        with pytest.raises(ValidationError):
+            CICADAPredictorConfig(name=["NonExistentExpert"])
+
+    def test_config_name_all_expert_types(self):
+        """
+        目的：验证全部 14 种专家类型均可被枚举正确接受
+        输入：枚举的全部成员名称作为字符串列表
+        预期：无异常，每个元素均为对应枚举值
+        """
+        all_names = [e.value for e in CICADAExpertName]
+        cfg = CICADAPredictorConfig(name=all_names)
+        assert len(cfg.name) == 14
+        assert all(isinstance(n, CICADAExpertName) for n in cfg.name)
+
     def test_config_frozen(self):
         """
         目的：验证 Config 不可变
@@ -111,7 +154,7 @@ class TestCICADAPredictorConfig:
         """
         cfg = CICADAPredictorConfig()
         with pytest.raises(ValidationError):
-            cfg.batch_size = 100
+            cfg.epochs = 100
 
     def test_config_validation_epochs(self):
         """
@@ -134,12 +177,12 @@ class TestCICADAPredictorConfig:
     def test_config_custom_values(self):
         """
         目的：验证自定义参数正确传递
-        输入：自定义 stride, batch_size
+        输入：自定义 batch_size, epochs
         预期：Config 中值为自定义值
         """
-        cfg = CICADAPredictorConfig(stride=100, batch_size=64)
-        assert cfg.stride == 100
+        cfg = CICADAPredictorConfig(batch_size=64, epochs=30)
         assert cfg.batch_size == 64
+        assert cfg.epochs == 30
 
 
 # ============================================================================
@@ -179,17 +222,6 @@ class TestCICADAPredictorFit:
         predictor = _make_predictor(num_channels=3)
         predictor.fit(train_data)
         assert predictor._num_channels_detected == 3
-
-    def test_fit_data_too_short_raises(self):
-        """
-        目的：验证数据行数不足时报错
-        输入：(0, 3) 空数据（win_size 锁定为 1，行数需 >= 1）
-        预期：ValueError
-        """
-        predictor = _make_predictor()
-        short_data = np.random.randn(0, 3).astype(np.float32)
-        with pytest.raises(ValueError, match="win_size"):
-            predictor.fit(short_data)
 
     def test_fit_1d_input_raises(self):
         """
@@ -415,8 +447,12 @@ class TestCICADAScorerConfig:
         """
         cfg = CICADAScorerConfig()
         # 继承的 CICADA 超参字段（与 Predictor Config 默认值完全一致）
-        assert cfg.name == ["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"]
-        assert cfg.stride == 1
+        assert cfg.name == [
+            CICADAExpertName.GradPCA,
+            CICADAExpertName.GradKPCA,
+            CICADAExpertName.GradFreKPCA,
+            CICADAExpertName.GradSubPCA,
+        ]
         assert cfg.num_channels is None
         assert cfg.batch_size == 256
         assert cfg.epochs == 60
@@ -460,20 +496,20 @@ class TestCICADAScorerConfig:
     def test_config_inherited_validation_still_works(self):
         """
         目的：验证父类的字段约束在子类中仍然生效
-        输入：epochs=0（违反 ge=1）
+        输入：epochs=-1（违反 ge=1）
         预期：抛出 ValidationError
         """
         with pytest.raises(ValidationError):
-            CICADAScorerConfig(epochs=0)
+            CICADAScorerConfig(epochs=-1)
 
     def test_config_custom_values(self):
         """
         目的：验证父类字段与新增字段可同时自定义
-        输入：stride=20, metric="mae"
+        输入：batch_size=64, metric="mae"
         预期：两者均正确写入
         """
-        cfg = CICADAScorerConfig(stride=20, metric="mae")
-        assert cfg.stride == 20
+        cfg = CICADAScorerConfig(batch_size=64, metric="mae")
+        assert cfg.batch_size == 64
         assert cfg.metric == "mae"
 
 
@@ -516,17 +552,6 @@ class TestCICADAScorerFit:
         scorer = _make_scorer(num_channels=3)
         scorer.fit(train_df)
         assert scorer.is_fitted is True
-
-    def test_fit_data_too_short_raises(self):
-        """
-        目的：验证数据行数不足以构造滑动窗口时报错
-        输入：(0, 3) 空数据（win_size 锁定为 1，行数需 >= 1）
-        预期：内部 Predictor 抛出 ValueError("win_size ...")
-        """
-        scorer = _make_scorer()
-        short_data = np.random.randn(0, 3).astype(np.float32)
-        with pytest.raises(ValueError, match="win_size"):
-            scorer.fit(short_data)
 
 
 # ============================================================================
@@ -820,8 +845,8 @@ class TestCICADAScorerVsDecisionFunction:
           CICADAScorer 使用简单 MSE/MAE（x - x_pred）
         - **归一化域不同**：decision_function 在归一化空间计算残差；
           CICADAScorer 在原始空间计算（reconstruct 返回反归一化后的值）
-        - **窗口策略不同**：decision_function 使用 stride=1 滑窗 + 合并；
-          reconstruct 使用 stride=win_size 的非重叠窗
+        - **窗口策略不同**：decision_function 内部使用滑窗策略；
+          reconstruct 使用 win_size=1 的逐行推理
         - **MAML 适配**：decision_function 包含测试时元学习适配；
           reconstruct 不含
     """
@@ -997,7 +1022,7 @@ class TestCICADAScorerVsDecisionFunction:
 
         # 记录统计信息（通过 print 输出到测试报告）
         print(f"\n{'=' * 60}")
-        print("CICADAScorer vs CICADA.decision_function 分数对比")
+        print(f"CICADAScorer vs CICADA.decision_function 分数对比")
         print(f"{'=' * 60}")
         print(f"CICADAScorer  — mean: {scores.mean():.6f}, std: {scores.std():.6f}, "
               f"min: {scores.min():.6f}, max: {scores.max():.6f}")

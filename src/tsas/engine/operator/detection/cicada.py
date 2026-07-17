@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 """
 CICADA 异常检测算子
@@ -28,7 +29,7 @@ CICADA 异常检测算子
 """
 
 import json
-from enum import Enum
+from enum import Enum, StrEnum
 from pathlib import Path
 
 import numpy as np
@@ -40,6 +41,7 @@ from tsas.engine.operator.detection.base import BasePredictorMixin, SingleScorer
 from tsas.engine.operator.detection.residual_scorer import ResidualMetric, ResidualScorer, ResidualScorerConfig
 
 __all__ = [
+    'CICADAExpertName',
     'CICADANormalization',
     'CICADAInferMode',
     'CICADAPredictorConfig',
@@ -48,6 +50,59 @@ __all__ = [
     'CICADAScorerExtraOutput',
     'CICADAScorer',
 ]
+
+
+class CICADAExpertName(StrEnum):
+    """CICADA 专家编码器类型枚举
+
+    定义底层 CICADA 模型支持的全部专家编码器类型。
+    每种类型使用不同的编码策略对输入数据进行降维和重构。
+    用户在配置 ``name`` 参数时必须从此枚举中选取。
+
+    Attributes:
+        MLP (CICADAExpertName): 多层感知机编码器
+        GradPCA (CICADAExpertName): 梯度主成分分析编码器，可微 PCA
+        GradSubPCA (CICADAExpertName): 梯度子空间主成分分析编码器
+        GradKPCA (CICADAExpertName): 梯度核主成分分析编码器，支持非线性降维
+        GradKPCADiff (CICADAExpertName): 梯度微分核主成分分析编码器
+        GradFreKPCA (CICADAExpertName): 梯度频率核主成分分析编码器，融合频域特征
+        GradSFA (CICADAExpertName): 梯度慢特征分析编码器
+        GradAR (CICADAExpertName): 梯度自回归编码器
+        PatchTST (CICADAExpertName): PatchTST 时序变换器编码器
+        FreMLP (CICADAExpertName): 频域多层感知机编码器
+        CNN (CICADAExpertName): 卷积神经网络编码器
+        GradNMF (CICADAExpertName): 梯度非负矩阵分解编码器
+        GradDict (CICADAExpertName): 梯度字典学习编码器
+        GradTensorCP (CICADAExpertName): 梯度张量 CP 分解编码器
+    """
+    MLP = "MLP"
+    """多层感知机编码器"""
+    GradPCA = "GradPCA"
+    """梯度主成分分析编码器，可微 PCA"""
+    GradSubPCA = "GradSubPCA"
+    """梯度子空间主成分分析编码器"""
+    GradKPCA = "GradKPCA"
+    """梯度核主成分分析编码器，支持非线性降维"""
+    GradKPCADiff = "GradKPCADiff"
+    """梯度微分核主成分分析编码器"""
+    GradFreKPCA = "GradFreKPCA"
+    """梯度频率核主成分分析编码器，融合频域特征"""
+    GradSFA = "GradSFA"
+    """梯度慢特征分析编码器"""
+    GradAR = "GradAR"
+    """梯度自回归编码器"""
+    PatchTST = "PatchTST"
+    """PatchTST 时序变换器编码器"""
+    FreMLP = "FreMLP"
+    """频域多层感知机编码器"""
+    CNN = "CNN"
+    """卷积神经网络编码器"""
+    GradNMF = "GradNMF"
+    """梯度非负矩阵分解编码器"""
+    GradDict = "GradDict"
+    """梯度字典学习编码器"""
+    GradTensorCP = "GradTensorCP"
+    """梯度张量 CP 分解编码器"""
 
 
 class CICADANormalization(str, Enum):
@@ -90,8 +145,7 @@ class CICADAPredictorConfig(BaseModel):
     覆盖 CICADA 构造函数的全部参数。``num_channels`` 为 ``None`` 时自动从训练数据推断。
 
     Attributes:
-        name (list[str]): 专家模型名称列表，如 ``["GradPCA", "GradKPCA"]``
-        stride (int): 训练滑动步长，必须大于 0
+        name (list[CICADAExpertName]): 专家模型列表，如 ``[CICADAExpertName.GradPCA, CICADAExpertName.GradKPCA]``
         num_channels (int | None): 输入特征维度；``None`` 时从训练数据自动推断
         batch_size (int): 训练批大小，必须大于 0
         epochs (int): 训练轮数，必须大于 0
@@ -123,13 +177,17 @@ class CICADAPredictorConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     # -- 专家配置 --
-    name: list[str] = Field(
-        default=["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"],
-        description="专家模型名称列表",
+    name: list[CICADAExpertName] = Field(
+        default=[
+            CICADAExpertName.GradPCA,
+            CICADAExpertName.GradKPCA,
+            CICADAExpertName.GradFreKPCA,
+            CICADAExpertName.GradSubPCA,
+        ],
+        description="专家模型列表",
     )
 
-    # -- 窗口 / 数据形状 --
-    stride: int = Field(default=1, ge=1, description="训练滑动步长")
+    # -- 数据形状 --
     num_channels: int | None = Field(
         default=None,
         description="输入特征维度；None 时从训练数据自动推断",
@@ -208,11 +266,10 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
         - CICADA 包为延迟导入（``_local_libs.import_cicada_class()``），属内部本地库，
           **不在 PyPI 上**，一般以 ``cicada`` 或 ``bq_cicada`` 名称通过 path 依赖发布
         - ``num_channels`` 在 Config 中为 ``None`` 时自动从训练数据推断
-        - 滑动窗口长度锁定为 1（``_WIN_SIZE``），输入行数需 >= 1
         - 输入数据会被自动转换为 float32 以适配 CICADA 内部要求
 
     Input:
-        x: 二维时序数据，形状 (n_samples, n_features)，每列为一个特征通道
+        x: 二维数据，形状 (n_samples, n_features)，每列为一个特征通道
 
     Output:
         重构值矩阵，与输入同形状
@@ -231,9 +288,6 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
 
     _MODEL_FILE = "cicada_model.pt"
     _META_FILE = "cicada_meta.json"
-
-    # 滑动窗口长度锁定为 1（不再作为可配置参数暴露）
-    _WIN_SIZE = 1
 
     @classmethod
     def name(cls) -> str:
@@ -270,23 +324,17 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
         """
         校验 ndarray 输入的维度和行数
 
-        CICADA 要求输入为 2D 数组且行数不小于 ``_WIN_SIZE``，
-        否则无法构建滑动窗口进行重构。
+        CICADA 要求输入为 2D 数组。
 
         Args:
             x (np.ndarray): 输入 ndarray
             params (None): 无运行参数
 
         Raises:
-            ValueError: 输入非 2D 时，或行数不足 ``_WIN_SIZE`` 时
+            ValueError: 输入非 2D 时
         """
         if x.ndim != 2:
             raise ValueError(f"CICADAPredictor 要求 2D 输入，收到 {x.ndim}D")
-        if x.shape[0] < self._WIN_SIZE:
-            raise ValueError(
-                f"CICADAPredictor 要求输入行数 >= win_size={self._WIN_SIZE}，"
-                f"收到 {x.shape[0]} 行"
-            )
 
     # ------------------------------------------------------------------
     # 训练
@@ -307,7 +355,7 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
             params (None): 无训练参数
 
         Raises:
-            ValueError: 输入非 2D 或行数不足 ``_WIN_SIZE`` 时
+            ValueError: 输入非 2D 时
         """
         from tsas.engine.operator.detection._local_libs import import_cicada_class
         CICADA = import_cicada_class()  # noqa: lazy import
@@ -315,11 +363,6 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
         # 校验输入维度（fit 管线不做此检查，需在 _fit_data 内部校验）
         if x.ndim != 2:
             raise ValueError(f"CICADAPredictor 要求 2D 输入，收到 {x.ndim}D")
-        if x.shape[0] < self._WIN_SIZE:
-            raise ValueError(
-                f"CICADAPredictor 要求输入行数 >= win_size={self._WIN_SIZE}，"
-                f"收到 {x.shape[0]} 行"
-            )
 
         # 推断 num_channels：Config 中为 None 时取训练数据的特征维度
         num_channels = (
@@ -332,8 +375,8 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
         # 将 Config 全部参数透传构造 CICADA 模型实例
         self._model = CICADA(
             name=list(self.config.name),
-            win_size=self._WIN_SIZE,
-            stride=self.config.stride,
+            win_size=1,  # 本算子为表格异常检测算子，不负责处理滑动窗口，因此固定1
+            stride=1,  # 本算子为表格异常检测算子，不负责处理滑动窗口，因此固定1
             num_channels=num_channels,
             batch_size=self.config.batch_size,
             epochs=self.config.epochs,
@@ -521,7 +564,7 @@ class CICADAScorer(SingleScorerMixin[None],
     无需训练）。
 
     Input:
-        x: 二维时序数据，形状 (n_samples, n_features)，每列为一个特征通道
+        x: 二维数据，形状 (n_samples, n_features)，每列为一个特征通道
 
     Output:
         异常分数，形状 (n_samples,)，值越大越异常。
