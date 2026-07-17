@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 """
 PCA 异常检测算子单元测试
@@ -23,6 +24,7 @@ from tsas.engine.operator.detection.pca import (
     PCAScorer,
     PCAScorerExtraOutput,
 )
+
 
 # ============================================================================
 # 公共测试数据
@@ -91,8 +93,12 @@ class TestPCAPredictor:
 
     def test_full_components_perfect_reconstruction(self, train_data):
         """
-        目的：验证 n_components 等于特征数时重构完美
-        输入：n_components=3（等于特征数）
+        目的：验证 n_components 等于特征数时重构完美（同时触发退化 warning）
+
+        背景：n_components == n_features 时 PCA 满秩，重构残差恒为 0。
+        算子会通过 loguru 输出 warning 但继续执行，重构值应与原始值一致。
+
+        输入：n_components=3（等于特征数 3）
         预期：重构值 ≈ 原始值（去中心化后）
         """
         predictor = PCAPredictor(n_components=3)
@@ -137,16 +143,20 @@ class TestPCAPredictor:
         # 解释方差比应全为 0
         assert all(v == 0 for v in predictor._explained_variance_ratio)
 
-    def test_n_components_exceeds_features(self):
+    def test_n_components_exceeds_features_raises_error(self):
         """
-        目的：验证 n_components 超过特征数时自动调整
-        输入：2个特征的训练数据，n_components=5
-        预期：实际使用 2 个主成分
+        目的：验证 n_components 超过特征数时抛出 ValueError
+
+        背景：n_components > n_features 时 PCA 无法降维，应直接报错
+        而非做用户非预期的隐式调整。
+
+        输入：2 个特征的训练数据，n_components=5
+        预期：抛出 ValueError，消息包含 "大于输入特征数"
         """
         train = np.random.randn(50, 2)
         predictor = PCAPredictor(n_components=5)
-        predictor.fit(train)
-        assert predictor._components.shape[0] == 2  # 自动调整为特征数
+        with pytest.raises(ValueError, match="大于输入特征数"):
+            predictor.fit(train)
 
 
 # ============================================================================

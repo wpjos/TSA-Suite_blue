@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 """
 PCA 异常检测算子
@@ -27,6 +28,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
 from tsas.engine.operator.base import NumericOperator, UnsupervisedNumericOperatorMixin
@@ -61,10 +63,14 @@ class PCAPredictorConfig(BaseModel):
     PCA 预测器实例参数
 
     Attributes:
-        n_components (int): 保留的主成分数量，必须为正整数
+        n_components (int): 保留的主成分数量，必须为正整数。
+            必须严格小于输入特征数 n_features，否则 PCA 满秩导致重构残差恒为 0。
     """
     model_config = {"frozen": True}
-    n_components: int = Field(default=2, ge=1, description="保留的主成分数量，必须为正整数")
+    n_components: int = Field(
+        default=2, ge=1,
+        description="保留的主成分数量，必须为正整数；必须严格小于输入特征数 n_features，否则 PCA 满秩导致重构残差恒为 0",
+    )
 
 
 class PCAPredictorExtraOutput(BaseModel):
@@ -98,7 +104,9 @@ class PCAPredictor(UnsupervisedNumericOperatorMixin[None],
         - 重构值即为预测值，后续与真实值的残差反映异常程度
 
     注意:
-        当 n_components 大于特征数时，自动调整为特征数。
+        - n_components 必须严格小于输入特征数 n_features
+        - n_components == n_features 时输出 warning（PCA 满秩，重构残差恒为 0，模型无判别力）
+        - n_components > n_features 时抛出 ValueError
 
     Input:
         x: 特征矩阵，形状 (n_samples, n_features)
@@ -152,24 +160,44 @@ class PCAPredictor(UnsupervisedNumericOperatorMixin[None],
         学习主成分
 
         对去中心化的训练数据进行 SVD 分解，提取前 n_components 个主成分。
-        当 n_components 大于特征数时，自动调整。
+
+        参数校验规则:
+            - n_components > n_features: 抛出 ValueError
+            - n_components == n_features: 输出 warning（满秩退化，残差恒为 0）
+            - n_components < n_features: 正常流程
 
         Args:
             x (np.ndarray): 训练数据，形状 (n_samples, n_features)
             params (None): 无训练参数
+
+        Raises:
+            ValueError: 当 n_components 大于输入特征数时
         """
+        n_features = x.shape[1]
+
+        # 校验 n_components 与 n_features 的关系
+        if self.config.n_components > n_features:
+            raise ValueError(
+                f"n_components ({self.config.n_components}) 大于输入特征数 "
+                f"({n_features})，PCA 无法降维。请调整 n_components 使其 < {n_features}"
+            )
+        if self.config.n_components == n_features:
+            logger.warning(
+                f"n_components ({self.config.n_components}) 等于输入特征数 "
+                f"({n_features})，PCA 将满秩重构，残差恒为 0，模型无判别力。"
+                f"建议将 n_components 设置为 < {n_features}"
+            )
+
         # 去中心化
         self._mean = x.mean(axis=0)
         x_centered = x - self._mean
-
-        # 自动调整 n_components（不超过特征数）
-        effective_k = min(self.config.n_components, x.shape[1])
 
         # SVD 分解: Vh 的前 k 行为主成分方向
         # full_matrices=False 使 Vh 形状为 (min(n,p), p)，节省计算
         _, s, vh = np.linalg.svd(x_centered, full_matrices=False)
 
-        # 提取前 effective_k 个主成分
+        # 提取前 n_components 个主成分
+        effective_k = self.config.n_components
         self._components = vh[:effective_k]
 
         # 计算解释方差比
@@ -259,11 +287,15 @@ class PCAScorerConfig(BaseModel):
     PCA 评分器实例参数
 
     Attributes:
-        n_components (int): PCA 保留的主成分数量
+        n_components (int): PCA 保留的主成分数量。
+            必须严格小于输入特征数 n_features，否则 PCA 满秩导致重构残差恒为 0。
         metric (ResidualMetric): 残差计算方式
     """
     model_config = {"frozen": True}
-    n_components: int = Field(default=3, ge=1, description="PCA 保留的主成分数量")
+    n_components: int = Field(
+        default=3, ge=1,
+        description="PCA 保留的主成分数量；必须严格小于输入特征数 n_features，否则 PCA 满秩导致重构残差恒为 0",
+    )
     metric: ResidualMetric = Field(default=ResidualMetric.MSE, description="残差计算方式: 'mse' 或 'mae'")
 
 
@@ -419,12 +451,15 @@ class PCADetectorConfig(BaseModel):
     PCA 检测器实例参数
 
     Attributes:
-        n_components (int): PCA 保留的主成分数量
+        n_components (int): PCA 保留的主成分数量。
+            必须严格小于输入特征数 n_features，否则 PCA 满秩导致重构残差恒为 0。
         metric (ResidualMetric): 残差计算方式
         percentile (float): 百分位阈值
     """
-    model_config = {"frozen": True}
-    n_components: int = Field(default=3, ge=1, description="PCA 保留的主成分数量")
+    n_components: int = Field(
+        default=3, ge=1,
+        description="PCA 保留的主成分数量；必须严格小于输入特征数 n_features，否则 PCA 满秩导致重构残差恒为 0",
+    )
     metric: ResidualMetric = Field(default=ResidualMetric.MSE, description="残差计算方式: 'mse' 或 'mae'")
     percentile: float = Field(default=95.0, ge=50.0, le=99.9, description="百分位阈值")
 
