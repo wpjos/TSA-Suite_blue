@@ -25,17 +25,6 @@ src/tsas/engine/operator/detection/
 └── detection.md             # 本文档
 ```
 
-HPO 模块目录结构：
-
-```
-src/tsas/engine/hpo/
-├── __init__.py          # 模块入口，导出公共 API
-├── search_hint.py      # SearchHint 标记 + 搜索空间提取
-├── result.py           # HPOResult + TrialInfo 结果容器
-├── trainer.py          # HPOTrainer 编排器
-└── hpo.md              # HPO 模块开发指南
-```
-
 ---
 
 ## 1. 核心设计理念
@@ -185,6 +174,8 @@ class AdvancedConfig(BaseModel):
 ```
 
 > **注意**：数值型字段必须有 `ge`/`le`/`gt`/`lt` 中至少一个边界约束才会参与 HPO 搜索；无约束的字段自动跳过。详细说明请参阅 `tsas/engine/hpo/hpo.md`。
+
+> **CLI 效果**：上述 Field 约束和 `description` 同时被 CLI `show` 命令的参数表自动提取和展示，开发者无需额外维护 CLI 文档中的参数说明。
 
 ### 1.6 输出格式
 
@@ -555,52 +546,11 @@ detector.save("./model_dir")
 
 **注意**：`load` 方法需要在子类中覆写以实现完整加载逻辑，因为基类无法知道具体的算子类型。`load` 的签名中参数为 `oid`（非 `name`），与 `__init__` 的 `oid` 参数一致，用于自定义算子实例唯一标识后缀。
 
-### 3.7 已实现算子列表
-
-| 算子                | 类型        | 输入类型              | 是否可训练  | 有 EO |
-|-------------------|-----------|-------------------|--------|------|
-| PCAPredictor      | Predictor | NumericOperator   | ✅      | ✅    |
-| MeanPredictor     | Predictor | NumericOperator   | ✅      | ❌    |
-| CICADAPredictor   | Predictor | NumericOperator   | ✅      | ❌    |
-| PCAScorer         | Scorer    | NumericOperator   | ✅      | ✅    |
-| ZScoreScorer      | Scorer    | NumericOperator   | ✅      | ❌    |
-| KNNScorer         | Scorer    | NumericOperator   | ✅      | ✅    |
-| MeanScorer        | Scorer    | NumericOperator   | ❌      | ❌    |
-| ResidualScorer    | Scorer    | BiNumericOperator | ❌      | ✅    |
-| XiHeGammaScorer   | Scorer    | NumericOperator   | ❌(预训练) | ✅    |
-| PCADetector       | Detector  | NumericOperator   | ✅      | ✅    |
-| PercentileDecider | Decider   | NumericOperator   | ✅      | ✅    |
-| ThresholdDecider  | Decider   | NumericOperator   | ❌      | ❌    |
-
 ---
 
-## 4. HPO 使用
+## 4. 关键注意事项
 
-### 4.1 运行 HPO
-
-```python
-from tsas.engine.hpo import HPOTrainer
-from tsas.engine.operator.detection.zscore import ZScoreDetector
-from tsas.engine.operator.evaluation.binary_classification import BinaryClassificationMetric
-
-metric_op = BinaryClassificationMetric()
-trainer = HPOTrainer(ZScoreDetector, metric_op, n_trials=50, top_k=3)
-result = trainer.fit(train_data, val_labels=val_labels, val_split=0.3)
-
-# 访问结果
-print(result.best_params)  # 最优参数
-print(result.best_score)  # 最优分数（dict）
-print(result.best_score_value)  # 最优主分数值（float）
-print(result.best_operator)  # 最优算子实例
-```
-
-> **注意**：HPO 模块的详细说明请参阅 `tsas/engine/hpo/hpo.md`。
-
----
-
-## 5. 关键注意事项
-
-### 5.1 Detector 的训练流程
+### 4.1 Detector 的训练流程
 
 自定义 Detector 通过组合模式在 `_fit_data` 中实现训练——通常需要：
 
@@ -608,16 +558,16 @@ print(result.best_operator)  # 最优算子实例
 2. 用训练数据计算训练分数
 3. 用训练分数训练 Decider
 
-### 5.2 `_fitted` 标志
+### 4.2 `_fitted` 标志
 
 Mixin 的 `_fit` 模板方法会在调用 `_fit_data` 后自动设置 `self._fitted = True`。**子类的 `_fit_data` 不需要手动设置 `_fitted`。**
 
-### 5.3 扩展输出 EO
+### 4.3 扩展输出 EO
 
 - 需要附加信息 → 定义 `BaseModel` 子类作为 EO，在 `_run_data` 中构造并返回 `tuple[np.ndarray, EO]`
 - 不需要 → 直接返回 `np.ndarray`
 
-### 5.3.1 预判附加输出
+#### 4.3.1 预判附加输出
 
 调用方可在实例化前通过 `has_extra_output()` 类方法预判 `run()` 的返回形态：
 
@@ -628,7 +578,7 @@ else:
     result = scorer.run(data)  # NumericData
 ```
 
-### 5.4 save / load
+### 4.4 save / load
 
 可训练算子支持持久化。**推荐覆写 `_save_fit_state(path)` 和 `_load_fit_state(path)` 钩子方法**以保存额外状态（如模型权重、训练统计量等），而非直接覆写 `save` / `load`。
 
@@ -650,12 +600,3 @@ def _load_fit_state(self, path):
 ```
 
 > **重要**：`_fitted` 状态不会自动恢复，`_load_fit_state` 中**必须**手动设置 `self._fitted = True`。
-
-### 5.5 覆盖率工具
-
-由于 numpy 双版本冲突，使用以下方式运行覆盖率：
-
-```bash
-coverage run -m pytest tests/test_engine_operator/test_detection/ --tb=short
-coverage report --include="src/tsas/engine/operator/detection/*" --show-missing
-```
