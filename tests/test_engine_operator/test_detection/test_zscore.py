@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 """
 Z-Score 异常检测算子单元测试
@@ -17,6 +18,7 @@ import pytest
 from pandas import DataFrame
 
 from tsas.engine.operator.detection.zscore import ZScoreDetector, ZScoreScorer
+
 
 # ============================================================================
 # 公共测试数据

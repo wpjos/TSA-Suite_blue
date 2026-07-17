@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 """
 均值合并评分器单元测试
@@ -25,6 +26,7 @@ from tsas.engine.operator.detection.mean_merge_scorer import (
     MeanMergeScorerExtraOutput,
     ScoreMergeMethod,
 )
+
 
 # ============================================================================
 # 公共测试数据

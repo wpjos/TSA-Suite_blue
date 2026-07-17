@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 """
 Z-Score 异常检测算子

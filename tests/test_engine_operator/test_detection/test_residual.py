@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 """
 具体检测算子单元测试
@@ -18,6 +19,7 @@ import pytest
 from pandas import DataFrame
 
 from tsas.engine.operator.detection.residual_scorer import ResidualMapScorer, ResidualScorer, ResidualScorerExtraOutput
+
 
 # ============================================================================
 # 公共测试数据

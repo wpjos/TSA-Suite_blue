@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 """
 羲和 Gamma 评分器测试模块
@@ -30,6 +31,7 @@ from tsas.engine.operator.detection.xihe import (
     XiHeGammaScorerConfig,
     XiHeGammaScorerExtraOutput,
 )
+
 
 # ============================================================================
 # Mock 工具

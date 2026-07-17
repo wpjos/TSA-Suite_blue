@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 """
 固定阈值决策器单元测试
@@ -16,6 +17,7 @@ import pytest
 from pandas import DataFrame
 
 from tsas.engine.operator.detection.threshold_decider import ThresholdDecider
+
 
 # ============================================================================
 # 公共测试数据

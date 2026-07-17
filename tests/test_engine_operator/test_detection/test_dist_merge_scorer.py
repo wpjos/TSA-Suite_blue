@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 """
 分布合并评分器单元测试
@@ -24,17 +25,12 @@ import pytest
 from pandas import DataFrame
 from pydantic import ValidationError
 
-from tsas.engine.operator.detection.dist_merge_scorer import (
-    DistDirectMergeScorer,
-    DistDirectMergeScorerConfig,
-    DistMergeScorer,
-    DistMergeScorerConfig,
-    DistMergeScorerExtraOutput,
-    ScoreDistribution,
-    _compute_distribution_params,
-    _merge_scores,
-    _validate_positive_input,
-)
+from tsas.engine.operator.detection.dist_merge_scorer import (_compute_distribution_params, _merge_scores,
+                                                              _validate_positive_input, DistDirectMergeScorer,
+                                                              DistDirectMergeScorerConfig, DistMergeScorer,
+                                                              DistMergeScorerConfig, DistMergeScorerExtraOutput,
+                                                              ScoreDistribution)
+
 
 # ============================================================================
 # 公共测试数据

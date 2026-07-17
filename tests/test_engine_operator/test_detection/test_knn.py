@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 """
 KNN 异常检测算子单元测试
@@ -25,6 +26,7 @@ from tsas.engine.operator.detection.knn import (
     KNNScorer,
     KNNScorerExtraOutput,
 )
+
 
 # ============================================================================
 # 公共测试数据
