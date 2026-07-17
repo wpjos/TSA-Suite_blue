@@ -19,6 +19,7 @@ import json
 import numpy as np
 import pandas as pd
 import pytest
+import yaml
 from pydantic import BaseModel
 
 from tsas.engine.operator.cli.evaluation import (_resolve_output_key, _result_to_dict, create_registry, main)
@@ -46,6 +47,24 @@ def score_csv(tmp_path):
     np.random.seed(42)
     df = pd.DataFrame({'score': np.random.randn(50)})
     path = tmp_path / "scores.csv"
+    df.to_csv(path, index=False)
+    return path
+
+
+@pytest.fixture
+def curve_csv(tmp_path):
+    """创建二分类曲线评价用 CSV（含离散 label 列和连续 score 列）
+
+    binary_classification_curve 要求 y_predict 为连续异常分数，
+    因此单独构造 label + score 两列的测试数据。
+    """
+    df = pd.DataFrame({
+        'label': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                  1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        'score': [0.1, 0.05, 0.2, 0.15, 0.08, 0.12, 0.03, 0.25, 0.18, 0.06,
+                  0.7, 0.85, 0.6, 0.9, 0.75, 0.65, 0.8, 0.95, 0.55, 0.72],
+    })
+    path = tmp_path / "curve_predictions.csv"
     df.to_csv(path, index=False)
     return path
 
@@ -245,6 +264,315 @@ class TestEvaluationRun:
         with pytest.raises(ValueError, match="缺少 'name'"):
             main(['run', '--input', str(binary_csv), '--output', str(output_path),
                   '--config', str(config_path)])
+
+
+class TestEvaluationRunOutputFormat:
+    """测试 evaluation run 输出格式（--scalars-output 标量剥离、YAML 后缀输出）"""
+
+    def test_scalars_output_only_json(self, binary_csv, tmp_path, capsys):
+        """
+        目的：验证仅指定 --scalars-output 时输出标量结果（剥离 list 类型字段）
+        输入：binary_classification 配置，仅 --scalars-output（.json）
+        预期：输出存在；result 中不含 list 字段（如 confusion_matrix），保留标量字段
+        """
+        config = {
+            "operators": [
+                {
+                    "name": "binary_classification",
+                    "truth_columns": ["label"],
+                    "predict_columns": ["predict"],
+                }
+            ]
+        }
+        config_path = tmp_path / "config.json"
+        with open(config_path, 'w') as f:
+            json.dump(config, f)
+
+        scalars_path = tmp_path / "scalars.json"
+        main(['run', '--input', str(binary_csv), '--scalars-output', str(scalars_path),
+              '--config', str(config_path)])
+
+        captured = capsys.readouterr()
+        assert "标量结果" in captured.out
+
+        with open(scalars_path, 'r', encoding='utf-8') as f:
+            result = json.load(f)
+        res = result["results"]["binary_classification"]["result"]
+        # confusion_matrix 为 list，应被标量输出剥离
+        assert "confusion_matrix" not in res
+        # 标量字段保留
+        assert "f1" in res
+
+    def test_no_output_raises(self, binary_csv, tmp_path):
+        """
+        目的：验证既不指定 --output 也不指定 --scalars-output 时报错退出
+        输入：无任何输出路径
+        预期：SystemExit(1)
+        """
+        config = {
+            "operators": [
+                {
+                    "name": "binary_classification",
+                    "truth_columns": ["label"],
+                    "predict_columns": ["predict"],
+                }
+            ]
+        }
+        config_path = tmp_path / "config.json"
+        with open(config_path, 'w') as f:
+            json.dump(config, f)
+
+        with pytest.raises(SystemExit):
+            main(['run', '--input', str(binary_csv), '--config', str(config_path)])
+
+    def test_output_yaml_format(self, binary_csv, tmp_path, capsys):
+        """
+        目的：验证 --output 使用 .yaml 后缀时输出 YAML 格式
+        输入：binary_classification 配置 + .yaml 输出路径
+        预期：输出为合法 YAML，yaml.safe_load 读回结构正确；完整结果保留 list 字段
+        """
+        config = {
+            "operators": [
+                {
+                    "name": "binary_classification",
+                    "truth_columns": ["label"],
+                    "predict_columns": ["predict"],
+                }
+            ]
+        }
+        config_path = tmp_path / "config.json"
+        with open(config_path, 'w') as f:
+            json.dump(config, f)
+
+        output_path = tmp_path / "result.yaml"
+        main(['run', '--input', str(binary_csv), '--output', str(output_path),
+              '--config', str(config_path)])
+
+        content = output_path.read_text(encoding='utf-8')
+        data = yaml.safe_load(content)
+        assert "results" in data
+        assert "binary_classification" in data["results"]
+        # 完整结果应保留 confusion_matrix（list 字段）
+        assert "confusion_matrix" in data["results"]["binary_classification"]["result"]
+
+    def test_scalars_output_yaml_format(self, binary_csv, tmp_path, capsys):
+        """
+        目的：验证 --scalars-output 使用 .yml 后缀时输出 YAML 标量结果
+        输入：binary_classification 配置 + .yml 标量输出路径
+        预期：输出为合法 YAML；标量结果剥离了 list 字段（confusion_matrix）
+        """
+        config = {
+            "operators": [
+                {
+                    "name": "binary_classification",
+                    "truth_columns": ["label"],
+                    "predict_columns": ["predict"],
+                }
+            ]
+        }
+        config_path = tmp_path / "config.json"
+        with open(config_path, 'w') as f:
+            json.dump(config, f)
+
+        scalars_path = tmp_path / "scalars.yml"
+        main(['run', '--input', str(binary_csv), '--scalars-output', str(scalars_path),
+              '--config', str(config_path)])
+
+        data = yaml.safe_load(scalars_path.read_text(encoding='utf-8'))
+        res = data["results"]["binary_classification"]["result"]
+        # confusion_matrix（list）被剥离
+        assert "confusion_matrix" not in res
+        assert "f1" in res
+
+    def test_both_outputs_yaml(self, binary_csv, tmp_path, capsys):
+        """
+        目的：验证 --output 与 --scalars-output 同时使用 .yaml 时均正确输出 YAML
+        输入：两个 .yaml 输出路径
+        预期：两个文件均为合法 YAML；完整版含 list 字段，标量版不含；同名标量值一致
+        """
+        config = {
+            "operators": [
+                {
+                    "name": "binary_classification",
+                    "truth_columns": ["label"],
+                    "predict_columns": ["predict"],
+                }
+            ]
+        }
+        config_path = tmp_path / "config.json"
+        with open(config_path, 'w') as f:
+            json.dump(config, f)
+
+        output_path = tmp_path / "result.yaml"
+        scalars_path = tmp_path / "scalars.yaml"
+        main(['run', '--input', str(binary_csv), '--output', str(output_path),
+              '--scalars-output', str(scalars_path), '--config', str(config_path)])
+
+        captured = capsys.readouterr()
+        assert "完整结果" in captured.out
+        assert "标量结果" in captured.out
+
+        full = yaml.safe_load(output_path.read_text(encoding='utf-8'))
+        scalars = yaml.safe_load(scalars_path.read_text(encoding='utf-8'))
+        # 完整版含 confusion_matrix，标量版不含
+        assert "confusion_matrix" in full["results"]["binary_classification"]["result"]
+        assert "confusion_matrix" not in scalars["results"]["binary_classification"]["result"]
+        # 两者同名标量字段一致
+        assert (full["results"]["binary_classification"]["result"]["f1"]
+                == scalars["results"]["binary_classification"]["result"]["f1"])
+
+    def test_json_yaml_equivalence_full_output(self, binary_csv, tmp_path):
+        """
+        目的：验证同一 evaluation 结果以 .json 和 .yaml 输出后语义完全等价
+        输入：binary_classification 配置 + 二分类数据；同一输入分别输出 .json / .yaml
+        预期：json 读回 == yaml 读回（含标量、嵌套 dict、confusion_matrix 二维列表）
+        说明：算子计算为确定性，相同输入产生相同结果
+        """
+        config = {
+            "operators": [
+                {
+                    "name": "binary_classification",
+                    "truth_columns": ["label"],
+                    "predict_columns": ["predict"],
+                }
+            ]
+        }
+        config_path = tmp_path / "config.json"
+        with open(config_path, 'w') as f:
+            json.dump(config, f)
+
+        json_path = tmp_path / "result.json"
+        yaml_path = tmp_path / "result.yaml"
+        main(['run', '--input', str(binary_csv), '--output', str(json_path),
+              '--config', str(config_path)])
+        main(['run', '--input', str(binary_csv), '--output', str(yaml_path),
+              '--config', str(config_path)])
+
+        from_json = json.loads(json_path.read_text(encoding='utf-8'))
+        from_yaml = yaml.safe_load(yaml_path.read_text(encoding='utf-8'))
+        assert from_json == from_yaml
+
+    def test_json_yaml_equivalence_curve_arrays(self, curve_csv, tmp_path):
+        """
+        目的：验证含长曲线数组（thresholds/tpr/fpr 等）的 curve 结果 json/yaml 等价
+        输入：binary_classification_curve 配置 + 连续分数数据
+        预期：json 读回 == yaml 读回；两者均含 thresholds/tpr/fpr 列表且值完全一致
+        """
+        config = {
+            "operators": [
+                {
+                    "name": "binary_classification_curve",
+                    "truth_columns": ["label"],
+                    "predict_columns": ["score"],
+                }
+            ]
+        }
+        config_path = tmp_path / "config.json"
+        with open(config_path, 'w') as f:
+            json.dump(config, f)
+
+        json_path = tmp_path / "curve.json"
+        yaml_path = tmp_path / "curve.yaml"
+        main(['run', '--input', str(curve_csv), '--output', str(json_path),
+              '--config', str(config_path)])
+        main(['run', '--input', str(curve_csv), '--output', str(yaml_path),
+              '--config', str(config_path)])
+
+        from_json = json.loads(json_path.read_text(encoding='utf-8'))
+        from_yaml = yaml.safe_load(yaml_path.read_text(encoding='utf-8'))
+        # 深度等价
+        assert from_json == from_yaml
+        # 确认含曲线数组字段且非空
+        res_json = from_json["results"]["binary_classification_curve"]["result"]
+        assert len(res_json["thresholds"]) > 0
+        assert len(res_json["tpr"]) == len(res_json["thresholds"])
+        assert len(res_json["fpr"]) == len(res_json["thresholds"])
+
+    def test_json_yaml_equivalence_scalars_output(self, binary_csv, tmp_path):
+        """
+        目的：验证 --scalars-output 的标量结果在 json/yaml 两种格式下等价
+        输入：binary_classification 配置；分别用 .json / .yaml 输出标量结果
+        预期：json 读回 == yaml 读回；两者均不含 confusion_matrix（list 已剥离）
+        """
+        config = {
+            "operators": [
+                {
+                    "name": "binary_classification",
+                    "truth_columns": ["label"],
+                    "predict_columns": ["predict"],
+                }
+            ]
+        }
+        config_path = tmp_path / "config.json"
+        with open(config_path, 'w') as f:
+            json.dump(config, f)
+
+        json_path = tmp_path / "scalars.json"
+        yaml_path = tmp_path / "scalars.yaml"
+        main(['run', '--input', str(binary_csv), '--scalars-output', str(json_path),
+              '--config', str(config_path)])
+        main(['run', '--input', str(binary_csv), '--scalars-output', str(yaml_path),
+              '--config', str(config_path)])
+
+        from_json = json.loads(json_path.read_text(encoding='utf-8'))
+        from_yaml = yaml.safe_load(yaml_path.read_text(encoding='utf-8'))
+        assert from_json == from_yaml
+        # 标量结果不含 list 字段
+        assert "confusion_matrix" not in from_json["results"]["binary_classification"]["result"]
+
+    def test_uppercase_yaml_suffix_e2e(self, binary_csv, tmp_path):
+        """
+        目的：验证 .YAML 大写后缀在端到端流程中正常输出 YAML
+        输入：binary_classification 配置 + .YAML 输出路径
+        预期：文件为合法 YAML，yaml.safe_load 读回结构正确
+        """
+        config = {
+            "operators": [
+                {
+                    "name": "binary_classification",
+                    "truth_columns": ["label"],
+                    "predict_columns": ["predict"],
+                }
+            ]
+        }
+        config_path = tmp_path / "config.json"
+        with open(config_path, 'w') as f:
+            json.dump(config, f)
+
+        output_path = tmp_path / "result.YAML"
+        main(['run', '--input', str(binary_csv), '--output', str(output_path),
+              '--config', str(config_path)])
+
+        data = yaml.safe_load(output_path.read_text(encoding='utf-8'))
+        assert "binary_classification" in data["results"]
+
+    def test_json_yaml_cross_loader(self, binary_csv, tmp_path):
+        """
+        目的：验证 JSON 输出文件可被 yaml.safe_load 直接解析（跨解析器兼容）
+        输入：evaluation 生成 .json 输出
+        预期：yaml.safe_load 解析 .json 结果与 json.load 完全一致
+        说明：JSON 是 YAML 1.2 子集，下游可统一用 PyYAML 加载两种格式
+        """
+        config = {
+            "operators": [
+                {
+                    "name": "binary_classification",
+                    "truth_columns": ["label"],
+                    "predict_columns": ["predict"],
+                }
+            ]
+        }
+        config_path = tmp_path / "config.json"
+        with open(config_path, 'w') as f:
+            json.dump(config, f)
+
+        json_path = tmp_path / "result.json"
+        main(['run', '--input', str(binary_csv), '--output', str(json_path),
+              '--config', str(config_path)])
+
+        via_json = json.loads(json_path.read_text(encoding='utf-8'))
+        via_yaml = yaml.safe_load(json_path.read_text(encoding='utf-8'))
+        assert via_json == via_yaml
 
 
 class TestResolveOutputKey:

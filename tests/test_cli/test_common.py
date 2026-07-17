@@ -19,7 +19,9 @@ import argparse
 import pandas as pd
 import pytest
 
-from tsas.engine.operator.cli.common import (auto_suffix, build_help_subparser, extract_encoding_arg, handle_help,
+from tsas.engine.operator.cli.common import (auto_suffix, build_help_subparser, build_list_subparser,
+                                             build_show_subparser,
+                                             extract_encoding_arg, handle_help, handle_list, handle_show,
                                              instantiate_operator)
 from tsas.engine.operator.cli.detection import create_registry as create_detection_registry
 
@@ -147,7 +149,7 @@ class TestBuildHelpSubparser:
         """
         目的：验证构建的子解析器包含 ``help`` 子命令
         输入：空的 subparsers 容器
-        预期：解析 ``['help']`` 成功，``operator_name`` 为 ``None``
+        预期：解析 ``['help']`` 成功，``operator_names`` 为 ``None``
         """
         parser = argparse.ArgumentParser()
         subparsers = parser.add_subparsers(dest='command')
@@ -156,13 +158,13 @@ class TestBuildHelpSubparser:
         # 解析 help 无参数
         args = parser.parse_args(['help'])
         assert args.command == 'help'
-        assert args.operator_name is None
+        assert args.operator_names == []
 
     def test_help_with_operator_name(self):
         """
         目的：验证 ``help`` 带算子名称时正确解析
         输入：``['help', 'knn_scorer']``
-        预期：``operator_name == 'knn_scorer'``
+        预期：``operator_names == ['knn_scorer']``
         """
         parser = argparse.ArgumentParser()
         subparsers = parser.add_subparsers(dest='command')
@@ -170,7 +172,7 @@ class TestBuildHelpSubparser:
 
         args = parser.parse_args(['help', 'knn_scorer'])
         assert args.command == 'help'
-        assert args.operator_name == 'knn_scorer'
+        assert args.operator_names == ['knn_scorer']
 
     def test_returns_parser(self):
         """
@@ -185,48 +187,192 @@ class TestBuildHelpSubparser:
 
 
 # ============================================================================
-# handle_help 测试
+# build_list_subparser / build_show_subparser 测试
 # ============================================================================
 
-class TestHandleHelp:
-    """测试 ``handle_help`` 帮助命令处理函数"""
+class TestBuildListSubparser:
+    """测试 ``build_list_subparser`` 子解析器构建函数"""
+
+    def test_creates_list_subcommand(self):
+        """
+        目的：验证构建的子解析器包含 ``list`` 子命令
+        输入：空的 subparsers 容器
+        预期：解析 ``['list']`` 成功，``command`` 为 ``'list'``
+        """
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers(dest='command')
+        build_list_subparser(subparsers)
+
+        args = parser.parse_args(['list'])
+        assert args.command == 'list'
+
+    def test_returns_parser(self):
+        """
+        目的：验证函数返回值为 ``argparse.ArgumentParser`` 实例
+        输入：空的 subparsers 容器
+        预期：返回值为 ``argparse.ArgumentParser`` 类型
+        """
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers(dest='command')
+        result = build_list_subparser(subparsers)
+        assert isinstance(result, argparse.ArgumentParser)
+
+
+class TestBuildShowSubparser:
+    """测试 ``build_show_subparser`` 子解析器构建函数"""
+
+    def test_creates_show_subcommand(self):
+        """
+        目的：验证构建的子解析器包含 ``show`` 子命令
+        输入：空的 subparsers 容器
+        预期：解析 ``['show', 'knn_scorer']`` 成功
+        """
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers(dest='command')
+        build_show_subparser(subparsers)
+
+        args = parser.parse_args(['show', 'knn_scorer'])
+        assert args.command == 'show'
+        assert args.operator_names == ['knn_scorer']
+
+    def test_show_without_args_errors(self):
+        """
+        目的：验证 ``show`` 不带参数时报错（``nargs='+'``）
+        输入：``['show']``
+        预期：解析失败（``argparse`` 报错）
+        """
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers(dest='command')
+        build_show_subparser(subparsers)
+
+        with pytest.raises(SystemExit):
+            parser.parse_args(['show'])
+
+    def test_show_multiple_names(self):
+        """
+        目的：验证 ``show`` 支持多个算子名称
+        输入：``['show', 'knn_scorer', 'pca_scorer']``
+        预期：``operator_names == ['knn_scorer', 'pca_scorer']``
+        """
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers(dest='command')
+        build_show_subparser(subparsers)
+
+        args = parser.parse_args(['show', 'knn_scorer', 'pca_scorer'])
+        assert args.command == 'show'
+        assert args.operator_names == ['knn_scorer', 'pca_scorer']
+
+
+# ============================================================================
+# handle_list / handle_show 测试
+# ============================================================================
+
+class TestHandleList:
+    """测试 ``handle_list`` 算子列表处理函数"""
 
     @pytest.fixture
     def registry(self):
         """创建已完成 discover 的检测算子注册中心"""
         return create_detection_registry()
 
-    def test_list_all_operators(self, registry, capsys):
+    def test_list_outputs_all_operators(self, registry, capsys):
         """
-        目的：验证 ``operator_name`` 为 ``None`` 时输出所有算子列表
-        输入：``registry``, ``None``
-        预期：输出包含已注册的检测算子名称
+        目的：验证 ``handle_list`` 输出所有算子的列表概览
+        输入：已注册的算子注册中心
+        预期：stdout 中包含已注册算子名称（knn_scorer, knn_detector）
         """
-        handle_help(registry, None)
+        handle_list(registry)
         captured = capsys.readouterr()
-        # 检测算子应该出现在列表中
         assert "knn_scorer" in captured.out
         assert "knn_detector" in captured.out
 
-    def test_detail_single_operator(self, registry, capsys):
+
+class TestHandleShow:
+    """测试 ``handle_show`` 算子详情处理函数"""
+
+    @pytest.fixture
+    def registry(self):
+        """创建已完成 discover 的检测算子注册中心"""
+        return create_detection_registry()
+
+    def test_show_single_operator(self, registry, capsys):
         """
-        目的：验证指定算子名称时输出详细帮助
-        输入：``registry``, ``'knn_scorer'``
-        预期：输出包含算子名称标题和参数信息
+        目的：验证 ``handle_show`` 单算子详情输出
+        输入：``registry``, ``['knn_scorer']``
+        预期：stdout 包含算子标题和参数名
         """
-        handle_help(registry, 'knn_scorer')
+        handle_show(registry, ['knn_scorer'])
         captured = capsys.readouterr()
         assert "## knn_scorer" in captured.out
         assert "n_neighbors" in captured.out
 
+    def test_show_multiple_operators(self, registry, capsys):
+        """
+        目的：验证 ``handle_show`` 批量详情输出
+        输入：``registry``, ``['knn_scorer', 'threshold_decider']``
+        预期：stdout 包含两个算子的标题和分隔线
+        """
+        handle_show(registry, ['knn_scorer', 'threshold_decider'])
+        captured = capsys.readouterr()
+        assert "## knn_scorer" in captured.out
+        assert "## threshold_decider" in captured.out
+        assert "---" in captured.out
+
+    def test_show_unknown_operator_raises(self, registry):
+        """
+        目的：验证 ``handle_show`` 查找不存在算子时抛出 ``KeyError``
+        输入：``registry``, ``['nonexistent_operator']``
+        预期：抛出 ``KeyError``
+        """
+        with pytest.raises(KeyError, match="未找到名为"):
+            handle_show(registry, ['nonexistent_operator'])
+
+
+# ============================================================================
+# handle_help 废弃别名测试
+# ============================================================================
+
+class TestHandleHelp:
+    """测试 ``handle_help`` 废弃别名函数"""
+
+    @pytest.fixture
+    def registry(self):
+        """创建已完成 discover 的检测算子注册中心"""
+        return create_detection_registry()
+
+    def test_list_mode_with_deprecation_warning(self, registry, capsys):
+        """
+        目的：验证 ``help`` 无参数时转发到 list 并输出废弃提示到 stderr
+        输入：``registry``, ``None``
+        预期：stderr 包含废弃提示，stdout 包含算子列表
+        """
+        handle_help(registry, None)
+        captured = capsys.readouterr()
+        # 废弃提示输出到 stderr
+        assert "已废弃" in captured.err
+        assert "list" in captured.err
+        # 列表内容输出到 stdout
+        assert "knn_scorer" in captured.out
+
+    def test_show_mode_with_deprecation_warning(self, registry, capsys):
+        """
+        目的：验证 ``help`` 带算子名称时转发到 show 并输出废弃提示到 stderr
+        输入：``registry``, ``['knn_scorer']``
+        预期：stderr 包含废弃提示，stdout 包含算子详情
+        """
+        handle_help(registry, ['knn_scorer'])
+        captured = capsys.readouterr()
+        assert "已废弃" in captured.err
+        assert "## knn_scorer" in captured.out
+
     def test_unknown_operator_raises(self, registry):
         """
         目的：验证查找不存在的算子时抛出 ``KeyError``
-        输入：``registry``, ``'nonexistent_operator'``
+        输入：``registry``, ``['nonexistent_operator']``
         预期：抛出 ``KeyError``，错误信息包含 "未找到名为"
         """
         with pytest.raises(KeyError, match="未找到名为"):
-            handle_help(registry, 'nonexistent_operator')
+            handle_help(registry, ['nonexistent_operator'])
 
 
 # ============================================================================
