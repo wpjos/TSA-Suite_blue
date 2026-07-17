@@ -2,7 +2,7 @@
 
 本模块实现了**评价指标算子基础类型**（BaseMetricOperator），基于 BaseOperator 扩展，新增 `scores()` 方法供 HPO 单目标/多目标优化统一调用。
 
-本文档旨在指导开发者基于 `base.py` 框架开发新的评价指标算子，并提供已实现算子的使用参考。
+本文档旨在指导开发者基于 `base.py` 框架开发新的评价指标算子。
 
 **目录结构**：
 
@@ -16,120 +16,6 @@ src/tsas/engine/operator/evaluation/
 ├── point_adjust.py         # 点调整指标（PA-F1）
 ├── self_evaluation.py      # 无标签自评估指标
 └── evaluation.md           # 本文档
-```
-
----
-
-## 0. 已实现算子概览
-
-本模块已提供以下评价指标算子，可直接使用：
-
-| 算子类                            | 输入类型                            | MR 类型                             | 功能描述                              |
-|--------------------------------|---------------------------------|-----------------------------------|-----------------------------------|
-| `BinaryClassificationMetric`   | `tuple[np.ndarray, np.ndarray]` | `BinaryClassificationResult`      | 二分类离散标签指标（F1, FAR, MCC）           |
-| `BinaryClassificationCurve`    | `tuple[np.ndarray, np.ndarray]` | `BinaryClassificationCurveResult` | 二分类曲线指标（AUC-ROC, AUC-PR, Best-F1） |
-| `MultipleClassificationMetric` | `tuple[np.ndarray, np.ndarray]` | `MultiClassificationMetricResult` | 多分类指标（Macro 平均 + Per-Class）       |
-| `PointAdjust`                  | `tuple[np.ndarray, np.ndarray]` | `PointAdjustResult`               | 点调整指标（PA-F1，时序异常检测）               |
-| `SelfEvaluation`               | `np.ndarray`                    | `float`                           | 无标签自评估（变异系数 + Sigmoid）            |
-
-### 0.1 BinaryClassificationMetric 使用示例
-
-```python
-from tsas.engine.operator.evaluation import BinaryClassificationMetric
-
-# 实例化（默认 positive_label 为非 0/False/None/"")
-op = BinaryClassificationMetric()
-
-# 计算
-y_truth = np.array([0, 1, 0, 1, 1])
-y_predict = np.array([0, 1, 1, 1, 0])
-result = op.run((y_truth, y_predict))
-
-# 访问指标
-print(result.f1)      # F1 值
-print(result.far)     # 故障误报率（FPR）
-print(result.mcc)     # Matthews 相关系数
-print(result.confusion_matrix)  # 混淆矩阵 [[TN, FP], [FN, TP]]
-
-# HPO 集成：提取优化目标
-from tsas.engine.operator.evaluation.binary_classification import BinaryClassificationConfig
-
-op = BinaryClassificationMetric(config=BinaryClassificationConfig(main_scores={"f1": "f1", "far": "far"}))
-scores = op.scores((y_truth, y_predict))  # -> {"f1": 0.75, "far": 0.5}
-```
-
-### 0.2 BinaryClassificationCurve 使用示例
-
-```python
-from tsas.engine.operator.evaluation import BinaryClassificationCurve
-
-# 输入：真实标签 + 异常分数（连续）
-labels = np.array([0, 0, 1, 1, 1])
-scores = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
-
-op = BinaryClassificationCurve()
-result = op.run((labels, scores))
-
-print(result.auc_roc)       # ROC 曲线面积
-print(result.auc_pr)        # PR 曲线面积
-print(result.best_f1)       # 最优 F1 值
-print(result.best_f1_threshold)  # 最优 F1 对应阈值
-
-# HPO 集成
-from tsas.engine.operator.evaluation.binary_curve import BinaryClassificationCurveConfig
-
-op = BinaryClassificationCurve(config=BinaryClassificationCurveConfig(main_scores={"auc": "auc_roc", "f1": "best_f1"}))
-scores = op.scores((labels, scores))  # -> {"auc": 0.87, "f1": 0.67}
-```
-
-### 0.3 MultipleClassificationMetric 使用示例
-
-```python
-from tsas.engine.operator.evaluation import MultipleClassificationMetric
-
-y_truth = np.array([0, 1, 2, 0, 1])
-y_predict = np.array([0, 1, 1, 0, 2])
-
-op = MultipleClassificationMetric()
-result = op.run((y_truth, y_predict))
-
-print(result.accuracy)     # 总准确率（Macro）
-print(result.precision)    # Macro 精确率
-print(result.per_label_metrics[0].f1)  # 第 0 类的 F1
-print(result.confusion_matrix)     # k×k 混淆矩阵
-```
-
-### 0.4 PointAdjust 使用示例
-
-```python
-from tsas.engine.operator.evaluation import PointAdjust
-
-# 输入：真实标签 + 预测标签（离散 0/1）
-y_truth = np.array([0, 0, 1, 1, 1, 0, 0])  # 异常段 [2:5]
-y_predict = np.array([0, 0, 0, 1, 0, 0, 0])  # 仅第 3 点检测到
-
-op = PointAdjust()
-result = op.run((y_truth, y_predict))
-
-# PA 算法：若异常段内任一点被检测 → 整段为 TP
-print(result.pa_f1)        # PA-F1（应高于普通 F1）
-print(result.pa_recall)    # PA-Recall
-print(result.pa_precision) # PA-Precision
-```
-
-### 0.5 SelfEvaluation 使用示例
-
-```python
-from tsas.engine.operator.evaluation import SelfEvaluation
-
-# 输入：异常分数（无标签场景）
-scores = np.array([0.01, 0.02, 0.95, 0.98])
-
-op = SelfEvaluation()
-result = op.run(scores)  # -> float（变异系数经 Sigmoid 映射）
-
-# HPO 集成
-scores_dict = op.scores(scores)  # -> {"self_eval": 0.73}
 ```
 
 ---
@@ -253,9 +139,12 @@ class CVConfig(BaseMetricConfig):
 
 class CVMetricOp(BaseMetricOperator[np.ndarray, float, CVConfig, None]):
     """变异系数指标算子
-    
-    输入: 一维时序数据 np.ndarray
-    输出: 变异系数值 float（标准差 / 均值）
+
+    Input:
+        x: 一维时序数据
+
+    Output:
+        变异系数值（标准差 / 均值），经 Sigmoid 映射到 (0, 1)
     """
 
     @classmethod
@@ -277,6 +166,8 @@ op = CVMetricOp()
 result = op.run(np.array([1.0, 2.0, 3.0]))  # -> 0.4082...
 scores = op.scores(np.array([1.0, 2.0, 3.0]))  # -> {"cv": 0.4082...}
 ```
+
+> 已实现的 `SelfEvaluation` 算子（`self_evaluation.py`）遵循类似模式，MR 为 `float`，`main_scores` 路径使用 `"_"` 占位符。
 
 ### 2.2 新增结构化指标算子（MR=BaseModel）
 
@@ -311,9 +202,14 @@ class BinaryConfig(BaseMetricConfig):
 
 class BinaryMetricOp(BaseMetricOperator[tuple[np.ndarray, np.ndarray], BinaryResult, BinaryConfig, None]):
     """二分类评价指标算子
-    
-    输入: (y_truth, y_predict) 标签数组对
-    输出: BinaryResult 结构化指标
+
+    Input:
+        y_truth: 真实标签数组
+        y_predict: 预测标签数组
+
+    Output:
+        BinaryResult 结构化指标，可通过 f1/far/mcc 等属性访问各项指标值，
+        也可通过 main_scores 提取 f1/far 用于 HPO 优化
     """
 
     @classmethod
@@ -342,82 +238,9 @@ result = op.run((y_truth, y_predict))  # -> BinaryResult(...)
 scores = op.scores((y_truth, y_predict))  # -> {"f1": 0.85, "far": 0.12}
 ```
 
-### 2.3 新增无 Config 的指标算子（MC=None）
+> 已实现的 `BinaryClassificationMetric` 算子（`binary_classification.py`）遵循类似模式，MR 为 `BinaryClassificationResult`，CLI `show` 命令会自动渲染其字段表。
 
-**适用场景**：算子不需要配置参数。
-
-```python
-from tsas.engine.operator.evaluation import BaseMetricOperator
-
-
-class SimpleMetricOp(BaseMetricOperator[list[float], float, None, None]):
-    """无 Config 的简单均值指标算子"""
-
-    @classmethod
-    def name(cls) -> str:
-        return "simple_metric"
-
-    @classmethod
-    def version(cls) -> tuple[int, ...]:
-        return (1, 0, 0)
-
-    def _run(self, x: list[float], *, params) -> float:
-        return float(sum(x) / len(x))
-```
-
-**注意**：`MC=None` 时 `scores()` 始终返回 `None`，因为不存在 `config.main_scores`。
-
-### 2.4 新增多层嵌套 MR 的指标算子
-
-**适用场景**：指标结果有层级结构（如 macro/micro 聚合、多级指标嵌套）。
-
-```python
-from pydantic import BaseModel
-from tsas.engine.operator.evaluation import BaseMetricConfig, BaseMetricOperator
-
-
-class SubMetrics(BaseModel):
-    f1: float
-    auc: float
-
-
-class NestedResult(BaseModel):
-    macro: SubMetrics
-    micro: SubMetrics
-
-
-class NestedConfig(BaseMetricConfig):
-    # 使用点分路径提取嵌套属性
-    main_scores: dict[str, str] | None = {
-        "macro_f1": "macro.f1",
-        "micro_auc": "micro.auc",
-    }
-
-
-class NestedMetricOp(BaseMetricOperator[list[float], NestedResult, NestedConfig, None]):
-
-    @classmethod
-    def name(cls) -> str:
-        return "nested_metric"
-
-    @classmethod
-    def version(cls) -> tuple[int, ...]:
-        return (1, 0, 0)
-
-    def _run(self, x, *, params) -> NestedResult:
-        return NestedResult(
-            macro=SubMetrics(f1=0.9, auc=0.95),
-            micro=SubMetrics(f1=0.85, auc=0.88),
-        )
-```
-
-**使用方式**：
-
-```python
-op = NestedMetricOp()
-scores = op.scores([1.0, 2.0, 3.0])
-# -> {"macro_f1": 0.9, "micro_auc": 0.88}
-```
+> **其他变体**：当算子无需配置参数时，可将 MC 设为 `None`（此时 `scores()` 始终返回 `None`）；当 MR 包含层级结构时，`main_scores` 支持点分路径提取嵌套属性（如 `"macro.f1"`）。具体写法参见源码中的 `self_evaluation.py` 和 `multi_classification.py`。
 
 ---
 
@@ -616,45 +439,3 @@ op = MyMetricOp(config=MyConfig(main_scores={"f1": "f1"}, positive_label=1))
 # 显式指定算子实例标识后缀
 op = MyMetricOp(oid="my_metric", config=MyConfig(main_scores={"f1": "f1"}))
 ```
-
-### 5.6 测试要求
-
-评价指标算子的单元测试需满足：
-
-- 测试通过率 100%
-- 代码覆盖率 > 80%
-- 测试文件与源码文件一一映射
-
-运行覆盖率命令：
-
-```bash
-python -m pytest tests/test_engine_operator/test_evaluation/ --cov=tsas.engine.operator.evaluation.base --cov-report=term-missing -q
-```
-
----
-
-## 6. API 参考
-
-### 6.1 `BaseMetricConfig`
-
-```python
-class BaseMetricConfig(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    main_scores: dict[str, str] | None = None
-```
-
-### 6.2 `BaseMetricOperator[I, MR, MC, RP]`
-
-| 方法                  | 签名                                                          | 说明                             |
-|---------------------|-------------------------------------------------------------|--------------------------------|
-| `scores()`          | `(x, *, params=None, **kwargs) -> dict[str, float] \| None` | 按 main_scores 提取命名标量字典         |
-| `_run()`            | `(x, *, params) -> MR`                                      | **子类实现**，完成指标计算                |
-| `_extract_scores()` | `(result, main_scores) -> dict[str, float]`                 | 从 MR 中按映射提取标量字典                |
-| `_resolve_path()`   | `(obj, path: str) -> Any`                                   | 静态方法，按路径从对象中提取属性值（`"_"` 或点分路径） |
-
-### 6.3 泛型类型变量
-
-| 名称   | 定义                                                   | 用途             |
-|------|------------------------------------------------------|----------------|
-| `MR` | `TypeVar("MR", bound=Union[float, BaseModel])`       | 指标结果类型         |
-| `MC` | `TypeVar("MC", bound=Union[BaseMetricConfig, None])` | 实例参数（Config）类型 |
