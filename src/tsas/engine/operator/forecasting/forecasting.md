@@ -26,24 +26,16 @@ BaseForecaster._run() → _run_data()
 
 预测算子的 `fit` 和 `run` 遵循统一的形状约定：
 
-```python
+```
 # 训练
 fit(x, y):
-x: (timesteps, num_features)
-DataFrame
-或
-ndarray
-y: (timesteps, num_targets)
-DataFrame
-或
-ndarray
+    x: (timesteps, num_features)   DataFrame 或 ndarray
+    y: (timesteps, num_targets)    DataFrame 或 ndarray
 
 # 推理
 run(x):
-x: (seq_len, num_features)
-或(batch, seq_len, num_features)
-返回: (pred_len, num_targets)
-或(batch, pred_len, num_targets)
+    x: (seq_len, num_features) 或 (batch, seq_len, num_features)
+    返回: (pred_len, num_targets) 或 (batch, pred_len, num_targets)
 ```
 
 子类只需实现纯 ndarray 的 `_fit_data` 和 `_run_data`，基类自动完成类型转换和维度校验。
