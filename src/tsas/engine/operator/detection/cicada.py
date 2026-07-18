@@ -15,12 +15,12 @@ CICADA 异常检测算子
 示例用法::
 
     # 训练 + 推理
-    predictor = CICADAPredictor(config=CICADAPredictorConfig(name=["MLP"], num_channels=3, epochs=5))
+    predictor = CICADAPredictor(config=CICADAPredictorConfig(experts=["MLP"], num_channels=3, epochs=5))
     predictor.fit(train_data)
     recon = predictor.run(test_data)
 
     # 训练 + 异常评分（重构残差）
-    scorer = CICADAScorer(config=CICADAScorerConfig(name=["MLP"], num_channels=3, epochs=5, metric="mse"))
+    scorer = CICADAScorer(config=CICADAScorerConfig(experts=["MLP"], num_channels=3, epochs=5, metric="mse"))
     scorer.fit(train_data)
     scores, eo = scorer.run(test_data)
     # scores: shape (n_samples,) 的 1D 异常分数
@@ -145,7 +145,8 @@ class CICADAPredictorConfig(BaseModel):
     覆盖 CICADA 构造函数的全部参数。``num_channels`` 为 ``None`` 时自动从训练数据推断。
 
     Attributes:
-        name (list[CICADAExpertName]): 专家模型列表，如 ``[CICADAExpertName.GradPCA, CICADAExpertName.GradKPCA]``
+        experts (list[str]): 专家模型名称列表，如 ``["GradPCA", "GradKPCA"]``
+        stride (int): 训练滑动步长，必须大于 0
         num_channels (int | None): 输入特征维度；``None`` 时从训练数据自动推断
         batch_size (int): 训练批大小，必须大于 0
         epochs (int): 训练轮数，必须大于 0
@@ -160,8 +161,10 @@ class CICADAPredictorConfig(BaseModel):
         test_meta_lr (float): 测试元学习率，必须大于 0
         meta_split_threshold (float): 专家分裂阈值，必须大于 0
         lr_split_factor (float): 分裂学习率因子，必须大于 1.0
-        ml_lambda (float): 专家损失权重，必须大于 0
-        penalty_rate (float): 元学习率正则化系数，不小于 0
+        lambda_self (float): self_loss 权重，必须大于 0
+        lambda_recon (float): recon_loss 权重，必须大于 0
+        lambda_mse (float): mse_loss 权重，必须大于 0
+        lambda_lr (float): lr_loss 权重，必须大于 0
         lr (float): 基础学习率，必须大于 0
         ttlr (float): 测试时学习率，必须大于 0
         gamma (float): 衰减因子，必须大于 0 且小于 1
@@ -172,19 +175,16 @@ class CICADAPredictorConfig(BaseModel):
         shuffle (bool): 是否打乱训练数据
         infer_mode (CICADAInferMode): 推理模式
         th (float): 异常检测百分位阈值，必须大于 0 且不大于 1
+        random_state (int | None): 随机种子；``None`` 表示熵驱动（每次结果不同），
+            传入整数可保证同数据 + 同超参下多次 ``fit/run`` 结果一致
     """
 
     model_config = ConfigDict(frozen=True)
 
     # -- 专家配置 --
-    name: list[CICADAExpertName] = Field(
-        default=[
-            CICADAExpertName.GradPCA,
-            CICADAExpertName.GradKPCA,
-            CICADAExpertName.GradFreKPCA,
-            CICADAExpertName.GradSubPCA,
-        ],
-        description="专家模型列表",
+    experts: list[str] = Field(
+        default=["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"],
+        description="专家模型名称列表",
     )
 
     # -- 数据形状 --
@@ -219,8 +219,10 @@ class CICADAPredictorConfig(BaseModel):
     test_meta_lr: float = Field(default=1e-3, gt=0.0, description="测试元学习率")
     meta_split_threshold: float = Field(default=5e-4, gt=0.0, description="专家分裂阈值")
     lr_split_factor: float = Field(default=1.414, gt=1.0, description="分裂学习率因子")
-    ml_lambda: float = Field(default=10.0, gt=0.0, description="专家损失权重")
-    penalty_rate: float = Field(default=0.01, ge=0.0, description="元学习率正则化系数")
+    lambda_self: float = Field(default=10.0, gt=0.0, description="self_loss 权重")
+    lambda_recon: float = Field(default=1.0, gt=0.0, description="recon_loss 权重")
+    lambda_mse: float = Field(default=1.0, gt=0.0, description="mse_loss 权重")
+    lambda_lr: float = Field(default=0.1, gt=0.0, description="lr_loss 权重")
 
     # -- 优化器 --
     lr: float = Field(default=1e-3, gt=0.0, description="基础学习率")
@@ -242,6 +244,12 @@ class CICADAPredictorConfig(BaseModel):
     # -- 推理 --
     infer_mode: CICADAInferMode = Field(default=CICADAInferMode.OFFLINE, description="推理模式")
     th: float = Field(default=0.98, gt=0.0, le=1.0, description="异常检测百分位阈值")
+
+    # -- 复现性 --
+    random_state: int | None = Field(
+        default=None,
+        description="随机种子；None=熵驱动（每次结果不同），int=可复现",
+    )
 
 
 class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
@@ -310,7 +318,7 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
             oid (str | None): 算子实例唯一标识后缀，缺省自动生成
             config (CICADAPredictorConfig | None): 类型化实例参数，优先级高于键值对参数
             **kwargs: 实例参数键值对，最终用于构造 :class:`CICADAPredictorConfig`；
-                常用项包括 ``name``、``num_channels``、``epochs`` 等
+                常用项包括 ``experts``、``num_channels``、``epochs`` 等
         """
         super().__init__(oid=oid, config=config, **kwargs)
         self._model = None
@@ -347,8 +355,10 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
         创建 CICADA 实例并执行训练。训练流程包括：
         1. 校验输入维度与行数（``_validate_ndarray_input`` 的补充校验）
         2. 推断 ``num_channels``（Config 中为 ``None`` 时从数据自动推断）
-        3. 将 Config 全部参数透传构造 CICADA 模型
-        4. 将输入转为 float32 后调用 ``CICADA.fit`` 完成训练
+        3. 固定全局随机种子（``bq_cicada.utils.seed_everything``），确保 expert
+           权重初始化等消费 torch 全局 RNG 的路径也走确定分支
+        4. 将 Config 全部参数透传构造 CICADA 模型
+        5. 将输入转为 float32 后调用 ``CICADA.fit`` 完成训练
 
         Args:
             x (np.ndarray): 训练数据，形状 ``(n_samples, n_features)``
@@ -357,8 +367,16 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
         Raises:
             ValueError: 输入非 2D 时
         """
+        from bq_cicada.utils import seed_everything  # noqa: lazy import
+
         from tsas.engine.operator.detection._local_libs import import_cicada_class
+
         CICADA = import_cicada_class()  # noqa: lazy import
+
+        # 固定全局 RNG：bq_cicada 的 CICADA.fit 不会自动播种，而 expert 权重的
+        # kaiming/xavier 初始化等路径直接消费 torch 全局 RNG。手动 seed_everything
+        # 才能保证 config.random_state=int 时多次 fit 完全 bit-identical
+        seed_everything(self.config.random_state)
 
         # 校验输入维度（fit 管线不做此检查，需在 _fit_data 内部校验）
         if x.ndim != 2:
@@ -374,9 +392,9 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
 
         # 将 Config 全部参数透传构造 CICADA 模型实例
         self._model = CICADA(
-            name=list(self.config.name),
-            win_size=1,  # 本算子为表格异常检测算子，不负责处理滑动窗口，因此固定1
-            stride=1,  # 本算子为表格异常检测算子，不负责处理滑动窗口，因此固定1
+            experts=list(self.config.experts),
+            win_size=self._WIN_SIZE,
+            stride=self.config.stride,
             num_channels=num_channels,
             batch_size=self.config.batch_size,
             epochs=self.config.epochs,
@@ -394,8 +412,10 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
             lr_split_factor=self.config.lr_split_factor,
             lr=self.config.lr,
             ttlr=self.config.ttlr,
-            ml_lambda=self.config.ml_lambda,
-            penalty_rate=self.config.penalty_rate,
+            lambda_self=self.config.lambda_self,
+            lambda_recon=self.config.lambda_recon,
+            lambda_mse=self.config.lambda_mse,
+            lambda_lr=self.config.lambda_lr,
             adaptive_add=self.config.adaptive_add,
             epoch_add=self.config.epoch_add,
             close_epochs=self.config.close_epochs,
@@ -403,6 +423,7 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
             shuffle=self.config.shuffle,
             infer_mode=self.config.infer_mode,
             th=self.config.th,
+            random_state=self.config.random_state,
         )
 
         # CICADA 内部要求 float32 输入，此处做类型转换以兼容 float64 等输入

@@ -72,7 +72,7 @@ def _make_predictor(**overrides):
     在内部固定为 1，不在 Config 中暴露。
     """
     defaults = dict(
-        name=["MLP"],
+        experts=["MLP"],
         num_channels=3,
         batch_size=32,
         epochs=1,
@@ -99,15 +99,8 @@ class TestCICADAPredictorConfig:
         预期：所有默认值正确；name 字段为 CICADAExpertName 枚举列表
         """
         cfg = CICADAPredictorConfig()
-        # name 默认值为 4 种梯度专家的枚举列表
-        assert cfg.name == [
-            CICADAExpertName.GradPCA,
-            CICADAExpertName.GradKPCA,
-            CICADAExpertName.GradFreKPCA,
-            CICADAExpertName.GradSubPCA,
-        ]
-        # 枚举与字符串可比较
-        assert [str(n) for n in cfg.name] == ["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"]
+        assert cfg.experts == ["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"]
+        assert cfg.stride == 1
         assert cfg.num_channels is None
         assert cfg.batch_size == 256
         assert cfg.epochs == 60
@@ -417,7 +410,7 @@ def _make_scorer(**overrides):
         CICADAScorer: 已实例化、未训练的 Scorer 对象。
     """
     defaults = dict(
-        name=["MLP"],
+        experts=["MLP"],
         num_channels=3,
         batch_size=32,
         epochs=1,
@@ -447,12 +440,8 @@ class TestCICADAScorerConfig:
         """
         cfg = CICADAScorerConfig()
         # 继承的 CICADA 超参字段（与 Predictor Config 默认值完全一致）
-        assert cfg.name == [
-            CICADAExpertName.GradPCA,
-            CICADAExpertName.GradKPCA,
-            CICADAExpertName.GradFreKPCA,
-            CICADAExpertName.GradSubPCA,
-        ]
+        assert cfg.experts == ["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"]
+        assert cfg.stride == 1
         assert cfg.num_channels is None
         assert cfg.batch_size == 256
         assert cfg.epochs == 60
