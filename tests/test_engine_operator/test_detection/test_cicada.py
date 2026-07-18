@@ -72,7 +72,7 @@ def _make_predictor(**overrides):
     在内部固定为 1，不在 Config 中暴露。
     """
     defaults = dict(
-        name=["MLP"],
+        experts=["MLP"],
         num_channels=3,
         batch_size=32,
         epochs=1,
@@ -99,15 +99,7 @@ class TestCICADAPredictorConfig:
         预期：所有默认值正确；name 字段为 CICADAExpertName 枚举列表
         """
         cfg = CICADAPredictorConfig()
-        # name 默认值为 4 种梯度专家的枚举列表
-        assert cfg.name == [
-            CICADAExpertName.GradPCA,
-            CICADAExpertName.GradKPCA,
-            CICADAExpertName.GradFreKPCA,
-            CICADAExpertName.GradSubPCA,
-        ]
-        # 枚举与字符串可比较
-        assert [str(n) for n in cfg.name] == ["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"]
+        assert cfg.experts == ["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"]
         assert cfg.num_channels is None
         assert cfg.batch_size == 256
         assert cfg.epochs == 60
@@ -417,7 +409,7 @@ def _make_scorer(**overrides):
         CICADAScorer: 已实例化、未训练的 Scorer 对象。
     """
     defaults = dict(
-        name=["MLP"],
+        experts=["MLP"],
         num_channels=3,
         batch_size=32,
         epochs=1,
@@ -447,12 +439,7 @@ class TestCICADAScorerConfig:
         """
         cfg = CICADAScorerConfig()
         # 继承的 CICADA 超参字段（与 Predictor Config 默认值完全一致）
-        assert cfg.name == [
-            CICADAExpertName.GradPCA,
-            CICADAExpertName.GradKPCA,
-            CICADAExpertName.GradFreKPCA,
-            CICADAExpertName.GradSubPCA,
-        ]
+        assert cfg.experts == ["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"]
         assert cfg.num_channels is None
         assert cfg.batch_size == 256
         assert cfg.epochs == 60
@@ -1064,3 +1051,49 @@ class TestCICADAScorerVsDecisionFunction:
         manual_total = manual_mse.mean(axis=1)
         scores, _ = scorer.run(test_data)
         np.testing.assert_allclose(scores, manual_total, atol=1e-5)
+class TestCICADAReproducibility:
+    """验证 random_state 固定时多次 fit/run 结果一致。"""
+
+    def test_random_state_default_is_none(self):
+        """默认 random_state=None（熵驱动），保持向后兼容。"""
+        cfg = CICADAPredictorConfig()
+        assert cfg.random_state is None
+
+    def test_random_state_field_accepted(self):
+        """Config 接受 random_state 整数。"""
+        cfg = CICADAPredictorConfig(random_state=42)
+        assert cfg.random_state == 42
+
+    def test_repeated_fit_same_seed_reproducible(self, train_data, test_data):
+        """相同 random_state + 相同数据 → 两次完整 fit+run 结果完全一致。"""
+        def _run_once():
+            pred = _make_predictor(random_state=42)
+            pred.fit(train_data)
+            return pred.run(test_data)
+
+        recon_a = _run_once()
+        recon_b = _run_once()
+        np.testing.assert_array_equal(recon_a, recon_b)
+
+    def test_repeated_fit_default_seed_differs(self, train_data, test_data):
+        """默认 random_state=None 时两次 fit 结果应不同（熵驱动）。"""
+        def _run_once():
+            pred = _make_predictor()
+            pred.fit(train_data)
+            return pred.run(test_data)
+
+        recon_a = _run_once()
+        recon_b = _run_once()
+        assert not np.array_equal(recon_a, recon_b)
+
+    def test_scorer_random_state_reproducible(self, train_data, test_data):
+        """CICADAScorer 同样通过 random_state 保证可复现。"""
+        def _run_once():
+            scorer = _make_scorer(random_state=42)
+            scorer.fit(train_data)
+            return scorer.run(test_data)
+
+        scores_a, eo_a = _run_once()
+        scores_b, eo_b = _run_once()
+        np.testing.assert_array_equal(scores_a, scores_b)
+        np.testing.assert_array_equal(eo_a.feature_recon, eo_b.feature_recon)
