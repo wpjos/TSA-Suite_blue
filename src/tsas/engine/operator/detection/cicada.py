@@ -146,7 +146,6 @@ class CICADAPredictorConfig(BaseModel):
 
     Attributes:
         experts (list[str]): 专家模型名称列表，如 ``["GradPCA", "GradKPCA"]``
-        stride (int): 训练滑动步长，必须大于 0
         num_channels (int | None): 输入特征维度；``None`` 时从训练数据自动推断
         batch_size (int): 训练批大小，必须大于 0
         epochs (int): 训练轮数，必须大于 0
@@ -296,6 +295,7 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
 
     _MODEL_FILE = "cicada_model.pt"
     _META_FILE = "cicada_meta.json"
+    _WIN_SIZE = 1  # 本算子为表格异常检测算子，不负责处理滑动窗口
 
     @classmethod
     def name(cls) -> str:
@@ -394,7 +394,7 @@ class CICADAPredictor(UnsupervisedNumericOperatorMixin[None],
         self._model = CICADA(
             experts=list(self.config.experts),
             win_size=self._WIN_SIZE,
-            stride=self.config.stride,
+            stride=1,  # 配套 win_size 锁定：本算子为表格异常检测算子
             num_channels=num_channels,
             batch_size=self.config.batch_size,
             epochs=self.config.epochs,

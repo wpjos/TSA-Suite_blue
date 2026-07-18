@@ -100,7 +100,6 @@ class TestCICADAPredictorConfig:
         """
         cfg = CICADAPredictorConfig()
         assert cfg.experts == ["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"]
-        assert cfg.stride == 1
         assert cfg.num_channels is None
         assert cfg.batch_size == 256
         assert cfg.epochs == 60
@@ -441,7 +440,6 @@ class TestCICADAScorerConfig:
         cfg = CICADAScorerConfig()
         # 继承的 CICADA 超参字段（与 Predictor Config 默认值完全一致）
         assert cfg.experts == ["GradPCA", "GradKPCA", "GradFreKPCA", "GradSubPCA"]
-        assert cfg.stride == 1
         assert cfg.num_channels is None
         assert cfg.batch_size == 256
         assert cfg.epochs == 60
