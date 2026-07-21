@@ -183,8 +183,8 @@ OUTPUT_DIR_NAME: str = 'FS_Results'
 DEFAULT_FONT_PATH: str = 'C:/Windows/Fonts/simhei.ttf'
 DEFAULT_FONT_FAMILY: str = 'SimHei'
 
-# OpenBLAS 线程数（为可复现性默认单线程）
-OPENBLAS_NUM_THREADS: str = '1'
+# OpenBLAS 线程数
+OPENBLAS_NUM_THREADS: str = '8'
 
 
 # ---------------------------------------------------------------------------
@@ -218,7 +218,7 @@ class PipelineConfig(BaseModel):
     # SAGE 参数
     batch_size: int = Field(default=512, ge=1, description='SAGE 批大小')
     thresh: float = Field(default=0.05, ge=0.0, description='SAGE 收敛阈值')
-    n_jobs: int = Field(default=1, ge=1, description='并行任务数')
+    n_jobs: int = Field(default=8, ge=1, description='并行任务数')
     bar: bool = Field(default=False, description='是否显示进度条')
 
     # CWDM 开关
@@ -305,10 +305,6 @@ def setup_environment() -> None:
         None: 本方法无返回值。
     """
     os.environ['OPENBLAS_NUM_THREADS'] = OPENBLAS_NUM_THREADS
-    os.environ['MKL_NUM_THREADS'] = '1'
-    os.environ['OMP_NUM_THREADS'] = '1'
-    os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
-    os.environ['NUMEXPR_NUM_THREADS'] = '1'
     sys.setrecursionlimit(sys.getrecursionlimit() * 5)
     logger.info('utils 环境初始化完成')
 
@@ -1530,7 +1526,7 @@ def _initialize_models_by_task(task: str) -> dict[str, object]:
     if task == 'Classification':
         return {
             'LogisticRegression': LogisticRegression(random_state=42, max_iter=1000),
-            'LightGBM': LGBMClassifier(n_estimators=100, random_state=42, verbose=-1, n_jobs=1),
+            'LightGBM': LGBMClassifier(n_estimators=100, random_state=42, verbose=-1),
         }
     elif task == 'Regression':
         return {
@@ -1923,7 +1919,7 @@ class RegressionTrainer:
         dtrain = xgb.DMatrix(train, label=y_train)
         dval = xgb.DMatrix(val, label=y_val)
 
-        param = {'max_depth': 10, 'objective': 'reg:squarederror', 'nthread': 1}
+        param = {'max_depth': 10, 'objective': 'reg:squarederror', 'nthread': 4}
         evallist = [(dtrain, 'train'), (dval, 'val')]
         num_round = 50
 
@@ -1965,9 +1961,9 @@ def _train_logistic_regression(
     """
     model = LogisticRegression(penalty=None, solver='saga')
 
-    acc = cross_val_score(model, X_combined, y_combined, cv=2, scoring='balanced_accuracy', n_jobs=1)
+    acc = cross_val_score(model, X_combined, y_combined, cv=2, scoring='balanced_accuracy')
     logger.info(f'ClassificationTrainer LogisticRegression 二折交叉验证 balanced_accuracy: {acc}')
-    acc = cross_val_score(model, X_combined, y_combined, cv=2, scoring='f1', n_jobs=1)
+    acc = cross_val_score(model, X_combined, y_combined, cv=2, scoring='f1')
     logger.info(f'ClassificationTrainer LogisticRegression 二折交叉验证 f1_score: {acc}')
 
     model.fit(X_combined, y_combined)
@@ -1997,9 +1993,9 @@ def _train_lda(
     """
     model = LinearDiscriminantAnalysis()
 
-    acc = cross_val_score(model, X_combined, y_combined, cv=2, scoring='balanced_accuracy', n_jobs=1)
+    acc = cross_val_score(model, X_combined, y_combined, cv=2, scoring='balanced_accuracy')
     logger.info(f'ClassificationTrainer LDA 二折交叉验证 balanced_accuracy: {acc}')
-    acc = cross_val_score(model, X_combined, y_combined, cv=2, scoring='f1', n_jobs=1)
+    acc = cross_val_score(model, X_combined, y_combined, cv=2, scoring='f1')
     logger.info(f'ClassificationTrainer LDA 二折交叉验证 f1_score: {acc}')
 
     model.fit(X_combined, y_combined)
@@ -2037,9 +2033,9 @@ def _train_svc(
 
     best_model = SVC(**study.best_params, random_state=42, probability=True)
 
-    acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='balanced_accuracy', n_jobs=1)
+    acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='balanced_accuracy')
     logger.info(f'ClassificationTrainer SVC 二折交叉验证 balanced_accuracy: {acc}')
-    acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='f1', n_jobs=1)
+    acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='f1')
     logger.info(f'ClassificationTrainer SVC 二折交叉验证 f1_score: {acc}')
 
     best_model.fit(X_combined, y_combined)
@@ -2077,11 +2073,11 @@ def _train_lgbm(
     )
     logger.info(f'ClassificationTrainer LGBM 最佳超参数: {study.best_params}')
 
-    best_model = lgb.LGBMClassifier(**study.best_params, verbose=-1, random_state=42, n_jobs=1)
+    best_model = lgb.LGBMClassifier(**study.best_params, verbose=-1, random_state=42)
 
-    acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='balanced_accuracy', n_jobs=1)
+    acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='balanced_accuracy')
     logger.info(f'ClassificationTrainer LGBM 二折交叉验证 balanced_accuracy: {acc}')
-    acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='f1', n_jobs=1)
+    acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='f1')
     logger.info(f'ClassificationTrainer LGBM 二折交叉验证 f1_score: {acc}')
 
     best_model.fit(X_combined, y_combined)
@@ -2119,9 +2115,9 @@ def _train_random_forest(
 
     best_model = RandomForestClassifier(**study.best_params)
 
-    acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='balanced_accuracy', n_jobs=1)
+    acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='balanced_accuracy')
     logger.info(f'ClassificationTrainer RandomForest 二折交叉验证 balanced_accuracy: {acc}')
-    acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='f1', n_jobs=1)
+    acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='f1')
     logger.info(f'ClassificationTrainer RandomForest 二折交叉验证 f1_score: {acc}')
 
     best_model.fit(X_combined, y_combined)
@@ -2168,7 +2164,7 @@ def _train_mlp(
         learning_rate_init=best_params['learning_rate_init'],
     )
 
-    acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='balanced_accuracy', n_jobs=1)
+    acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='balanced_accuracy')
     logger.info(f'ClassificationTrainer MLP 二折交叉验证 balanced_accuracy: {acc}')
 
     best_model.fit(X_combined, y_combined)
@@ -2206,7 +2202,7 @@ def _train_knn(
 
     best_model = KNeighborsClassifier(**study.best_params)
 
-    acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='balanced_accuracy', n_jobs=1)
+    acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='balanced_accuracy')
     logger.info(f'ClassificationTrainer KNN 二折交叉验证 balanced_accuracy: {acc}')
 
     best_model.fit(X_combined, y_combined)
@@ -2249,7 +2245,7 @@ def _objective_svc(trial: optuna.Trial, X: np.ndarray, y: np.ndarray) -> float:
         gamma = trial.suggest_loguniform('gamma', 1e-3, 1e3)
 
     model = SVC(C=C, kernel=kernel, gamma=gamma, random_state=42)
-    return cross_val_score(model, X, y, cv=2, scoring='accuracy', n_jobs=1).mean()
+    return cross_val_score(model, X, y, cv=2, scoring='accuracy').mean()
 
 
 def _objective_lgbm(
@@ -2278,7 +2274,6 @@ def _objective_lgbm(
         'metric': 'binary_error',
         'verbosity': -1,
         'random_state': 42,
-        'num_threads': 1,
         'boosting_type': trial.suggest_categorical('boosting', ['gbdt', 'dart']),
         'num_leaves': trial.suggest_int('num_leaves', 20, 300),
         'learning_rate': trial.suggest_loguniform('learning_rate', 0.005, 0.2),
@@ -2316,9 +2311,9 @@ def _objective_rf(trial: optuna.Trial, X: np.ndarray, y: np.ndarray) -> float:
 
     model = RandomForestClassifier(
         n_estimators=n_estimators, max_depth=max_depth,
-        max_features=max_features, random_state=42, n_jobs=1,
+        max_features=max_features, random_state=42, n_jobs=-1,
     )
-    return cross_val_score(model, X, y, cv=2, n_jobs=1).mean()
+    return cross_val_score(model, X, y, cv=2).mean()
 
 
 def _objective_mlp(trial: optuna.Trial, X: np.ndarray, y: np.ndarray) -> float:
@@ -2344,7 +2339,7 @@ def _objective_mlp(trial: optuna.Trial, X: np.ndarray, y: np.ndarray) -> float:
         alpha=alpha, learning_rate_init=learning_rate_init,
         max_iter=500, random_state=42,
     )
-    return cross_val_score(model, X, y, cv=2, n_jobs=1).mean()
+    return cross_val_score(model, X, y, cv=2).mean()
 
 
 def _objective_knn(trial: optuna.Trial, X: np.ndarray, y: np.ndarray) -> float:
@@ -2367,7 +2362,7 @@ def _objective_knn(trial: optuna.Trial, X: np.ndarray, y: np.ndarray) -> float:
         n_neighbors=n_neighbors, weights=weights,
         algorithm=algorithm, leaf_size=leaf_size,
     )
-    return cross_val_score(model, X, y, cv=2, n_jobs=1).mean()
+    return cross_val_score(model, X, y, cv=2).mean()
 
 
 # ---------------------------------------------------------------------------
@@ -2454,7 +2449,7 @@ class SAGEEvaluatorConfig:
         batch_size: int = 128,
         thresh: float = 0.025,
         task: str = 'Regression',
-        n_jobs: int = 1,
+        n_jobs: int = 8,
         bar: bool = False,
     ) -> None:
         self.batch_size = batch_size
@@ -2555,7 +2550,7 @@ def sage_value(
     batch_size: int = 128,
     thresh: float = 0.025,
     task: str = 'Regression',
-    n_jobs: int = 1,
+    n_jobs: int = 8,
     bar: bool = False,
 ) -> sage.SageValues:
     """基于 SAGE 的特征重要性排序。
@@ -2820,7 +2815,7 @@ def _performance_evaluation_regression(
         dval = xgb.DMatrix(x_val[:, selected_variable], label=y_val)
         dtest = xgb.DMatrix(x_test[:, selected_variable], label=y_test)
 
-        param = {'max_depth': 50, 'objective': 'reg:squarederror', 'nthread': 1}
+        param = {'max_depth': 50, 'objective': 'reg:squarederror', 'nthread': 4}
         evallist = [(dtrain, 'train'), (dval, 'val')]
         num_round = 100
 
@@ -2915,7 +2910,7 @@ def parse_args() -> PipelineConfig:
     parser.add_argument('--proxy_model', type=str, default='LGBMClassifier', help='PROXY MODEL')
     parser.add_argument('--batch_size', type=int, default=512, help='BATCH SIZE')
     parser.add_argument('--thresh', type=float, default=0.05, help='THRESHOLD')
-    parser.add_argument('--n_jobs', type=int, default=1, help='NUMBER OF JOBS')
+    parser.add_argument('--n_jobs', type=int, default=8, help='NUMBER OF JOBS')
     parser.add_argument('--auto_selected_model', action='store_true', default=False,
                         help='AUTO MODEL SELECTION')
     parser.add_argument('--sample_balanced', action='store_true', default=False,
