@@ -128,7 +128,7 @@ class CWDWSageSelectorExtraOutput(FeatureSelectorExtraOutput):
 
 
 class CWDWSageSelector(SupervisedFeatureSelector[CWDWSageSelectorExtraOutput, CWDWSageSelectorConfig, None]):
-    """CWDW + SAGE 有监督特征优选算子（CLI 包装）。
+    """CWDW + SAGE 有监督特征优选算子。
 
     内部执行：
         1. SISFilter 独立性筛选；
