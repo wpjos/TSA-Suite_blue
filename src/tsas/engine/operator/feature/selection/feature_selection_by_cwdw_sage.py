@@ -816,9 +816,9 @@ def _dc_sis(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     """
     import dcor
 
-    if isinstance(X, pd.DataFrame):
-        X = X.to_numpy()
-        Y = Y.to_numpy()
+    # dcor 的 AVL 编译实现仅接受浮点类型，避免触发 uncompiled fallback 警告
+    X = np.asarray(X, dtype=np.float64)
+    Y = np.asarray(Y, dtype=np.float64)
 
     n, p = X.shape
     dcor_value = np.zeros(p)
