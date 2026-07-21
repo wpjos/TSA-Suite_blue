@@ -1,30 +1,35 @@
 # -*- coding: utf-8 -*-
 
-"""CWDW + SAGE 三步特征优选算子的 CLI 适配包装。
+"""CWDW + SAGE 特征优选算子的 CLI 适配包装。
 
-将 ``feature_selection_by_cwdw_sage.py`` 中的
-SISFilter → CWDMSelector → ConvergenceFinder 流水线包装为
-``BaseFeatureSelector`` 子类，注册到 ``feature_selection`` CLI。
+将 ``feature_selection_by_cwdw_sage.py`` 中的完整流水线
+SISFilter → CWDMSelector → ConvergenceFinder → 代理模型训练 → SAGE 评估
+包装为 ``SupervisedFeatureSelector`` 子类，注册到 ``feature_selection`` CLI。
 """
 
+import json
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from tsas.engine.operator.feature.selection.base import (
-    BaseFeatureSelector,
     BaseFeatureSelectorConfig,
     FeatureSelectorExtraOutput,
+    SupervisedFeatureSelector,
 )
 
 __all__ = [
     'CWDWSageSelectorConfig',
     'CWDWSageSelectorExtraOutput',
+    'RankedFeatureItem',
     'CWDWSageSelector',
 ]
 
+
+# 与 feature_selection_by_cwdw_sage.py 内部默认值保持一致
 _SIS_THRESHOLD: float = 0.05
 _CWDM_N_ITERATIONS: int = 100
 _CWDM_FINAL_K_MAX: int = 150
@@ -33,14 +38,15 @@ _CWDM_DATA_THRESHOLD: int = 10_000_000
 _CONVERGENCE_STABILITY_THRESHOLD: float = 1e-3
 _CONVERGENCE_ACCURACY_THRESHOLD: float = 0.75
 _REGRESSION_LABEL_THRESHOLD: int = 20
+_SMOTE_RATIO_THRESHOLD: float = 0.35
+_SMOTE_RANDOM_STATE: int = 42
 
 
 class CWDWSageSelectorConfig(BaseFeatureSelectorConfig):
     """cwdw_sage 算子配置。
 
     Attributes:
-        label_column: 输入数据中标签列的列名（DataFrame）或列索引（ndarray）。
-            该列仅用于内部训练/选择，不会出现在输出特征中。
+        input_columns: 候选特征列名或列位置索引。``None`` 表示使用全部特征列。
         task: 任务类型，'Classification' | 'Regression' | 'auto'。
             为 'auto' 时根据标签唯一值数量自动判断。
         sis_threshold: SIS 独立性筛选阈值。
@@ -51,9 +57,19 @@ class CWDWSageSelectorConfig(BaseFeatureSelectorConfig):
         convergence_stability_threshold: 收敛稳定性阈值。
         convergence_accuracy_threshold: 收敛准确率阈值。
         regression_label_threshold: 自动判断回归任务时标签唯一值阈值。
+        proxy_model: 分类代理模型名称。
+        auto_selected_model: 是否自动选择分类代理模型（使用 LazyPredict）。
+        sample_balanced: 是否对训练数据做 SMOTE 样本均衡。
+        sage_batch_size: SAGE 评估批大小。
+        sage_thresh: SAGE 收敛阈值。
+        sage_n_jobs: SAGE 评估并行任务数。
+        sage_bar: 是否显示 SAGE 进度条。
+        visualization: 是否在 fit 阶段生成可视化图片。
+        generate_csv: 是否在 fit 阶段生成结果 CSV。
+        output_dir: 可视化图片与 CSV 输出目录。为 ``None`` 时使用当前工作目录下的 FS_Results。
+        random_state: 随机种子。
     """
 
-    label_column: str | int = Field(default='label', description='标签列名或列索引')
     task: str = Field(default='auto', description="任务类型：'Classification'、'Regression' 或 'auto'")
     sis_threshold: float = Field(default=_SIS_THRESHOLD, ge=0.0, description='SIS 筛选阈值')
     cwdm_n_iterations: int = Field(default=_CWDM_N_ITERATIONS, ge=1, description='CWDM 迭代次数')
@@ -76,6 +92,25 @@ class CWDWSageSelectorConfig(BaseFeatureSelectorConfig):
         ge=2,
         description='标签唯一值大于该值时视为回归',
     )
+    proxy_model: str = Field(default='LGBMClassifier', description='分类代理模型名称')
+    auto_selected_model: bool = Field(default=False, description='是否自动选择分类代理模型')
+    sample_balanced: bool = Field(default=False, description='是否对训练数据做 SMOTE 样本均衡')
+    sage_batch_size: int = Field(default=512, ge=1, description='SAGE 批大小')
+    sage_thresh: float = Field(default=0.05, ge=0.0, description='SAGE 收敛阈值')
+    sage_n_jobs: int = Field(default=8, ge=1, description='SAGE 并行任务数')
+    sage_bar: bool = Field(default=False, description='是否显示 SAGE 进度条')
+    visualization: bool = Field(default=False, description='是否在 fit 阶段生成可视化图片')
+    generate_csv: bool = Field(default=False, description='是否在 fit 阶段生成结果 CSV')
+    output_dir: str | None = Field(default=None, description='可视化图片与 CSV 输出目录')
+    random_state: int | None = Field(default=42, description='随机种子')
+
+
+class RankedFeatureItem(BaseModel):
+    """按 SAGE 重要性排序后的特征信息项。"""
+
+    feat_name: str = Field(description='特征名')
+    indices: int = Field(description='在完整输入中的全局列索引')
+    weight: float = Field(description='SAGE 重要性分数')
 
 
 class CWDWSageSelectorExtraOutput(FeatureSelectorExtraOutput):
@@ -86,25 +121,30 @@ class CWDWSageSelectorExtraOutput(FeatureSelectorExtraOutput):
     convergence_points: dict[str, int] = Field(description='各模型收敛点')
     final_k: int = Field(description='最终保留特征数')
     task: str = Field(description='实际使用的任务类型')
+    proxy_model_name: str = Field(description='代理模型名称')
+    sage_values: dict[int, float] = Field(description='全局索引到 SAGE 值的映射')
+    ranked_features: list[RankedFeatureItem] = Field(description='按 SAGE 值排序的特征列表')
+    feature_names: list[str] = Field(description='按 SAGE 值排序的特征名')
 
 
-class CWDWSageSelector(BaseFeatureSelector[CWDWSageSelectorExtraOutput, CWDWSageSelectorConfig]):
-    """CWDW + SAGE 特征优选算子（CLI 包装）。
+class CWDWSageSelector(SupervisedFeatureSelector[CWDWSageSelectorExtraOutput, CWDWSageSelectorConfig, None]):
+    """CWDW + SAGE 有监督特征优选算子（CLI 包装）。
 
     内部执行：
         1. SISFilter 独立性筛选；
         2. CWDMSelector 快速初筛；
-        3. ConvergenceFinder 稳定收敛点截取。
+        3. ConvergenceFinder 稳定收敛点截取；
+        4. 训练分类/回归代理模型；
+        5. SAGE 评估特征重要性并输出最终排序。
 
-    Input:
-        包含标签列的数值 DataFrame 或 ndarray，形状 (n_samples, n_features+1)
-
-    Output:
-        选择后的特征矩阵，形状 (n_samples, n_selected)
+    属于可训练算子，需要先 ``fit(x, y)`` 再 ``run(x)``，或加载已保存模型后 ``run``。
     """
 
     _eo_type = CWDWSageSelectorExtraOutput
     _config_type = CWDWSageSelectorConfig
+    _STATE_FILE: str = 'cwdw_sage_state.json'
+    _MODEL_FILE_SKLEARN: str = 'proxy_model.joblib'
+    _MODEL_FILE_XGB: str = 'proxy_model.xgb'
 
     def __init__(
         self,
@@ -114,7 +154,18 @@ class CWDWSageSelector(BaseFeatureSelector[CWDWSageSelectorExtraOutput, CWDWSage
         **kwargs: Any,
     ) -> None:
         super().__init__(oid=oid, config=config, **kwargs)
-        self._y: np.ndarray | None = None
+        self._selected_candidate_indices: list[int] | None = None
+        self._sis_selected_indices: list[int] | None = None
+        self._cwdm_selected_features: list[int] | None = None
+        self._convergence_points: dict[str, int] | None = None
+        self._final_k: int | None = None
+        self._task: str | None = None
+        self._proxy_model: object | None = None
+        self._proxy_model_name: str | None = None
+        self._sage_values: dict[int, float] | None = None
+        self._ranked_features: list[RankedFeatureItem] | None = None
+        self._feature_names_ranked: list[str] | None = None
+        self._candidate_feature_names: list[str] | None = None
 
     @classmethod
     def name(cls) -> str:
@@ -122,91 +173,94 @@ class CWDWSageSelector(BaseFeatureSelector[CWDWSageSelectorExtraOutput, CWDWSage
 
     @classmethod
     def version(cls) -> tuple[int, ...]:
-        return (1, 0, 0)
+        return (1, 1, 0)
 
-    def _filter_data(self, x, params=None):
-        """剔除标签列，缓存候选列全局索引与标签数组。
-
-        复用 ``BaseFeatureSelectorMixin._resolve_candidate_indices`` 解析
-        ``input_columns``，再把标签列从候选列中排除。
-        """
-        config = self._selector_config()
-        label_col = config.label_column
-
-        all_indices = self._resolve_candidate_indices(x)
-
-        # 定位标签列位置
-        if isinstance(x, pd.DataFrame):
-            if isinstance(label_col, str):
-                if label_col not in x.columns:
-                    raise ValueError(f"输入数据缺少标签列 '{label_col}'")
-                label_pos = list(x.columns).index(label_col)
-            else:
-                if label_col < 0 or label_col >= x.shape[1]:
-                    raise ValueError(f"标签列索引 {label_col} 越界")
-                label_pos = label_col
-            self._y = x.iloc[:, label_pos].to_numpy()
-        else:
-            if not isinstance(label_col, int):
-                raise TypeError("ndarray 输入时 label_column 必须为整数列索引")
-            if label_col < 0 or label_col >= x.shape[1]:
-                raise ValueError(f"标签列索引 {label_col} 越界")
-            label_pos = label_col
-            self._y = x[:, label_pos]
-
-        candidate_indices = [i for i in all_indices if i != label_pos]
-        if not candidate_indices:
-            raise ValueError("剔除标签列后没有可用的候选特征")
-
-        self._candidate_indices = candidate_indices
-
-        if isinstance(x, pd.DataFrame):
-            return x.iloc[:, candidate_indices]
-        return x[:, candidate_indices]
-
-    def _run_data(
+    def _filter_fit_data(
         self,
-        x: np.ndarray,
+        x: pd.DataFrame | np.ndarray,
+        y: pd.DataFrame | np.ndarray,
         params: None,
-        idx: pd.Index | None = None,
-    ) -> tuple[np.ndarray, CWDWSageSelectorExtraOutput]:
-        if self._y is None:
-            raise RuntimeError('标签数据未解析，请先通过 run() 传入包含标签列的完整数据')
+    ) -> tuple[pd.DataFrame | np.ndarray, pd.DataFrame | np.ndarray]:
+        """按候选列筛选训练输入，并保留 DataFrame 列名供后续使用。"""
+        filtered_x, filtered_y = super()._filter_fit_data(x, y, params=params)
+        if isinstance(filtered_x, pd.DataFrame):
+            self._candidate_feature_names = list(filtered_x.columns)
+        else:
+            self._candidate_feature_names = None
+        return filtered_x, filtered_y
 
-        config = self._selector_config()
-        task = self._resolve_task(self._y, config)
+    def _fit_data(self, x: np.ndarray, y: np.ndarray, params: None) -> None:
+        """训练：执行 SIS + CWDM + ConvergenceFinder + 代理模型 + SAGE。"""
+        from imblearn.over_sampling import SMOTE
 
-        # 延迟导入 heavy 依赖，避免 CLI 启动/扫描时加载
         from tsas.engine.operator.feature.selection.feature_selection_by_cwdw_sage import (
-            SISFilter,
-            SISFilterConfig,
-            CWDMSelector,
-            CWDMSelectorConfig,
+            ClassificationTrainer,
+            ClassificationTrainerConfig,
             ConvergenceFinder,
             ConvergenceFinderConfig,
+            CWDMSelector,
+            CWDMSelectorConfig,
+            SAGEEvaluator,
+            SAGEEvaluatorConfig,
+            SISFilter,
+            SISFilterConfig,
             data_preprocessing,
         )
 
-        # 1. 数据集划分与标准化（仅用于内部选择）
+        config = self._selector_config()
+        task = self._resolve_task(y, config)
+
+        # 1. 样本均衡（与原脚本 DataLoader 行为一致：在划分前对整个数据集做 SMOTE）
+        data_x, data_y = x, y.ravel()
+        if (
+            config.sample_balanced
+            and task == 'Classification'
+            and len(np.unique(data_y)) >= 2
+        ):
+            values, counts = np.unique(data_y, return_counts=True)
+            ratio = np.min(counts) / np.max(counts)
+            if ratio < _SMOTE_RATIO_THRESHOLD:
+                k_neighbors = max(1, np.min(counts) - 2)
+                smote = SMOTE(
+                    sampling_strategy='auto',
+                    random_state=_SMOTE_RANDOM_STATE,
+                    k_neighbors=k_neighbors,
+                )
+                data_x, data_y = smote.fit_resample(data_x, data_y)
+
+        # 2. 数据集划分与标准化
         train, val, test, y_train, y_val, y_test = data_preprocessing(
-            x, self._y, normalization_method='z-score', task=task
+            data_x,
+            data_y,
+            normalization_method='z-score',
+            task=task,
         )
 
-        # 2. SIS 独立性筛选
+        # 3. SIS 独立性筛选
         sis = SISFilter(config=SISFilterConfig(threshold=config.sis_threshold))
-        feature_names = np.arange(x.shape[1]).astype(str)
+        if self._candidate_feature_names is not None:
+            feature_names = np.array(self._candidate_feature_names)
+        else:
+            feature_names = np.arange(x.shape[1]).astype(str)
+
         train, val, test, y_train, y_val, y_test, feature_names, sis_eo = sis.filter(
-            train, val, test, y_train, y_val, y_test, feature_names
+            train,
+            val,
+            test,
+            y_train,
+            y_val,
+            y_test,
+            feature_names,
         )
 
-        # 3. CWDM 快速初筛
+        # 4. CWDM 快速初筛
         final_k = min(config.cwdm_final_k, train.shape[1])
         cwdm = CWDMSelector(
             config=CWDMSelectorConfig(
                 n_iterations=config.cwdm_n_iterations,
                 k_features='auto',
                 final_k=final_k,
-                random_state=None,
+                random_state=config.random_state,
                 n_blocks=config.cwdm_n_blocks,
                 data_threshold=config.cwdm_data_threshold,
             )
@@ -214,9 +268,10 @@ class CWDWSageSelector(BaseFeatureSelector[CWDWSageSelectorExtraOutput, CWDWSage
         cwdm_eo = cwdm.select(train, y_train)
         selected_features = cwdm_eo.selected_features  # 相对于 SIS 输出
 
-        # 4. ConvergenceFinder 收敛点截取
+        # 5. ConvergenceFinder 收敛点截取
         train_cwdm = train[:, selected_features]
         val_cwdm = val[:, selected_features]
+        test_cwdm = test[:, selected_features]
         finder = ConvergenceFinder(
             config=ConvergenceFinderConfig(
                 task=task,
@@ -233,19 +288,280 @@ class CWDWSageSelector(BaseFeatureSelector[CWDWSageSelectorExtraOutput, CWDWSage
         )
         final_stable_count = len(conv_eo.final_stable_features)
 
-        # 5. 映射回候选矩阵索引
-        final_candidate_indices = [selected_features[i] for i in range(final_stable_count)]
-        selected_global = self._to_global_indices(final_candidate_indices)
+        # 映射到候选列索引（相对于 input_columns 过滤后的候选矩阵）
+        candidate_indices_convergence_order = [
+            sis_eo.selected_indices[selected_features[i]]
+            for i in range(final_stable_count)
+        ]
+        feature_names_convergence_order = [
+            str(feature_names[selected_features[i]])
+            for i in range(final_stable_count)
+        ]
 
+        # 6. 训练代理模型
+        train_final = train_cwdm[:, conv_eo.final_stable_features]
+        val_final = val_cwdm[:, conv_eo.final_stable_features]
+        test_final = test_cwdm[:, conv_eo.final_stable_features]
+
+        if task == 'Classification':
+            proxy_arg = 1 if config.auto_selected_model else config.proxy_model
+            trainer = ClassificationTrainer(
+                config=ClassificationTrainerConfig(proxy_model=proxy_arg)
+            )
+            trainer_eo = trainer.train(
+                train_final, val_final, test_final,
+                y_train, y_val, y_test,
+            )
+            proxy_model = trainer_eo.best_model
+            proxy_model_name = trainer_eo.best_model_name
+        else:
+            from tsas.engine.operator.feature.selection.feature_selection_by_cwdw_sage import (
+                RegressionTrainer,
+                RegressionTrainerConfig,
+            )
+            trainer = RegressionTrainer(config=RegressionTrainerConfig())
+            trainer_eo = trainer.train(
+                train_final, val_final, test_final,
+                y_train, y_val, y_test,
+            )
+            proxy_model = trainer_eo.best_model
+            proxy_model_name = trainer_eo.best_model_name
+
+        # 7. SAGE 评估
+        sage_evaluator = SAGEEvaluator(
+            config=SAGEEvaluatorConfig(
+                batch_size=config.sage_batch_size,
+                thresh=config.sage_thresh,
+                task=task,
+                n_jobs=config.sage_n_jobs,
+                bar=config.sage_bar,
+            )
+        )
+        sage_train = sage_evaluator.evaluate(proxy_model, train_final, y_train).sage_values
+        sage_val = sage_evaluator.evaluate(proxy_model, val_final, y_val).sage_values
+        sage_test = sage_evaluator.evaluate(proxy_model, test_final, y_test).sage_values
+
+        # 8. 按 train SAGE 值排序（与原脚本一致）
+        sage_train_values = np.asarray(sage_train.values)
+        importance_index_local = np.argsort(-sage_train_values)
+
+        self._selected_candidate_indices = [
+            candidate_indices_convergence_order[i]
+            for i in importance_index_local
+        ]
+        self._feature_names_ranked = [
+            feature_names_convergence_order[i]
+            for i in importance_index_local
+        ]
+        self._sage_values = {
+            self._to_global_indices([self._selected_candidate_indices[i]])[0]: float(
+                sage_train_values[importance_index_local[i]]
+            )
+            for i in range(len(importance_index_local))
+        }
+        self._ranked_features = [
+            RankedFeatureItem(
+                feat_name=self._feature_names_ranked[i],
+                indices=self._to_global_indices([self._selected_candidate_indices[i]])[0],
+                weight=float(sage_train_values[importance_index_local[i]]),
+            )
+            for i in range(len(importance_index_local))
+        ]
+
+        # 9. 保存训练状态
+        self._sis_selected_indices = sis_eo.selected_indices
+        self._cwdm_selected_features = selected_features
+        self._convergence_points = conv_eo.convergence_points
+        self._final_k = final_stable_count
+        self._task = task
+        self._proxy_model = proxy_model
+        self._proxy_model_name = proxy_model_name
+
+        # 10. 可选产物输出
+        if config.visualization or config.generate_csv:
+            self._generate_artifacts(
+                sage_train=sage_train,
+                sage_val=sage_val,
+                sage_test=sage_test,
+                feature_importance_index=importance_index_local,
+                feature_names_convergence_order=feature_names_convergence_order,
+                model=proxy_model,
+                best_model_name=proxy_model_name,
+                x_train=train_final,
+                x_val=val_final,
+                x_test=test_final,
+                y_train=y_train,
+                y_val=y_val,
+                y_test=y_test,
+            )
+
+    def _run_data(
+        self,
+        x: np.ndarray,
+        params: None,
+        idx: pd.Index | None = None,
+    ) -> tuple[np.ndarray, CWDWSageSelectorExtraOutput]:
+        """推理：按训练得到的 SAGE 排名索引选择特征。"""
+        if self._selected_candidate_indices is None:
+            raise RuntimeError('CWDWSageSelector 尚未训练，请先 fit 或 load')
+
+        selected_global = self._to_global_indices(self._selected_candidate_indices)
         eo = CWDWSageSelectorExtraOutput(
             selected_indices=selected_global,
-            sis_selected_indices=sis_eo.selected_indices,
-            cwdm_selected_features=selected_features,
-            convergence_points=conv_eo.convergence_points,
-            final_k=final_stable_count,
-            task=task,
+            sis_selected_indices=list(self._sis_selected_indices or []),
+            cwdm_selected_features=list(self._cwdm_selected_features or []),
+            convergence_points=dict(self._convergence_points or {}),
+            final_k=self._final_k or 0,
+            task=self._task or 'Unknown',
+            proxy_model_name=self._proxy_model_name or 'Unknown',
+            sage_values=dict(self._sage_values or {}),
+            ranked_features=list(self._ranked_features or []),
+            feature_names=list(self._feature_names_ranked or []),
         )
-        return self._select_columns(x, final_candidate_indices, eo)
+        return self._select_columns(x, self._selected_candidate_indices, eo)
+
+    def _save_fit_state(self, path: Path) -> None:
+        """保存训练状态到模型目录。"""
+        super()._save_fit_state(path)
+        state = {
+            'selected_candidate_indices': [int(i) for i in (self._selected_candidate_indices or [])],
+            'sis_selected_indices': [int(i) for i in (self._sis_selected_indices or [])],
+            'cwdm_selected_features': [int(i) for i in (self._cwdm_selected_features or [])],
+            'convergence_points': {k: int(v) for k, v in (self._convergence_points or {}).items()},
+            'final_k': int(self._final_k or 0),
+            'task': self._task,
+            'proxy_model_name': self._proxy_model_name,
+            'feature_names_ranked': list(self._feature_names_ranked or []),
+            'sage_values': {str(k): float(v) for k, v in (self._sage_values or {}).items()},
+            'ranked_features': [
+                item.model_dump()
+                for item in (self._ranked_features or [])
+            ],
+        }
+        (path / self._STATE_FILE).write_text(json.dumps(state), encoding='utf-8')
+        self._save_proxy_model(path)
+
+    def _load_fit_state(self, path: Path) -> None:
+        """从模型目录加载训练状态。"""
+        super()._load_fit_state(path)
+        state = json.loads((path / self._STATE_FILE).read_text(encoding='utf-8'))
+        self._selected_candidate_indices = state['selected_candidate_indices']
+        self._sis_selected_indices = state['sis_selected_indices']
+        self._cwdm_selected_features = state['cwdm_selected_features']
+        self._convergence_points = state['convergence_points']
+        self._final_k = state['final_k']
+        self._task = state['task']
+        self._proxy_model_name = state['proxy_model_name']
+        self._feature_names_ranked = state['feature_names_ranked']
+        self._sage_values = {int(k): float(v) for k, v in state['sage_values'].items()}
+        self._ranked_features = [RankedFeatureItem(**item) for item in state['ranked_features']]
+        self._load_proxy_model(path)
+        self._fitted = True
+
+    def _save_proxy_model(self, path: Path) -> None:
+        """保存代理模型。"""
+        import joblib
+
+        if self._proxy_model is None or self._proxy_model_name is None:
+            return
+        if self._proxy_model_name == 'xgboost':
+            self._proxy_model.save_model(str(path / self._MODEL_FILE_XGB))
+        else:
+            joblib.dump(self._proxy_model, path / self._MODEL_FILE_SKLEARN)
+
+    def _load_proxy_model(self, path: Path) -> None:
+        """加载代理模型。"""
+        import joblib
+
+        if self._proxy_model_name == 'xgboost':
+            import xgboost as xgb
+
+            model = xgb.Booster()
+            model.load_model(str(path / self._MODEL_FILE_XGB))
+            self._proxy_model = model
+        else:
+            self._proxy_model = joblib.load(path / self._MODEL_FILE_SKLEARN)
+
+    def _generate_artifacts(
+        self,
+        *,
+        sage_train: object,
+        sage_val: object,
+        sage_test: object,
+        feature_importance_index: np.ndarray,
+        feature_names_convergence_order: list[str],
+        model: object,
+        best_model_name: str,
+        x_train: np.ndarray,
+        x_val: np.ndarray,
+        x_test: np.ndarray,
+        y_train: np.ndarray,
+        y_val: np.ndarray,
+        y_test: np.ndarray,
+    ) -> None:
+        """生成可视化图片与结果 CSV（副作用，仅在配置开启时调用）。"""
+        from tsas.engine.operator.feature.selection.feature_selection_by_cwdw_sage import (
+            fig_show_classification,
+            fig_show_regression,
+            plot_feature_importance_comparison,
+        )
+
+        config = self._selector_config()
+        output_dir = Path(config.output_dir) if config.output_dir else Path.cwd() / 'FS_Results'
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        feature_names = np.array(feature_names_convergence_order)
+
+        if config.visualization:
+            plot_feature_importance_comparison(
+                sage_train,
+                sage_val,
+                sage_test,
+                feature_names,
+                output_dir,
+                'cwdw_sage',
+            )
+            if self._task == 'Classification':
+                fig_show_classification(
+                    feature_importance_index,
+                    model,
+                    best_model_name,
+                    x_train,
+                    x_val,
+                    x_test,
+                    y_train,
+                    y_val,
+                    y_test,
+                    output_dir,
+                )
+            elif self._task == 'Regression':
+                fig_show_regression(
+                    feature_importance_index,
+                    model,
+                    best_model_name,
+                    x_train,
+                    x_val,
+                    x_test,
+                    y_train,
+                    y_val,
+                    y_test,
+                    output_dir,
+                )
+
+        if config.generate_csv:
+            import pandas as pd
+
+            result = pd.DataFrame(
+                [
+                    {
+                        'feat_name': item.feat_name,
+                        'indices': item.indices,
+                        'weight': item.weight,
+                    }
+                    for item in (self._ranked_features or [])
+                ]
+            )
+            result.to_csv(output_dir / '特征优选_result_特征重要性.csv', index=False)
 
     def _resolve_task(self, y: np.ndarray, config: CWDWSageSelectorConfig) -> str:
         if config.task != 'auto':

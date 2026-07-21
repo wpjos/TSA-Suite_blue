@@ -115,6 +115,11 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.svm import SVC
 import sage
+
+# 兼容不同版本 sage-importance：旧版暴露 sage.SageValues，新版暴露 sage.Explanation。
+if not hasattr(sage, 'SageValues') and hasattr(sage, 'Explanation'):
+    sage.SageValues = sage.Explanation
+
 import matplotlib.pyplot as plt
 from sklearn.metrics import (
     accuracy_score,

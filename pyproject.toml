@@ -48,11 +48,20 @@ lightgbm = [
 xgboost = [
     "xgboost>=1.7.6",
 ]
+cwdw_sage = [
+    "tsa-suite[hpo,lightgbm,xgboost]",
+    "imbalanced-learn",
+    "sage-importance>=0.0.6",
+    "statsmodels",
+    "dcor>=0.6,<0.8",
+    "numba<0.61",
+    "lazypredict>=0.3",
+]
 scipy = [
     "scipy>=1.11",
 ]
 all = [
-    "tsa-suite[hpo,knn,sklearn,pyod,torch,lightgbm,xgboost,scipy]",
+    "tsa-suite[hpo,knn,sklearn,pyod,torch,lightgbm,xgboost,scipy,cwdw_sage]",
 ]
 
 [dependency-groups]
@@ -63,9 +72,6 @@ dev = [
 test = [
     "pytest>=7.0",
 ]
-
-[project.scripts]
-tsas = "tsas.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/tsas"]

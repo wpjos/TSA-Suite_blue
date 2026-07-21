@@ -19,6 +19,7 @@ from tsas.engine.operator.cli.common import (build_help_subparser, build_list_su
 from tsas.engine.operator.cli.config_loader import load_config
 from tsas.engine.operator.cli.io import ensure_encoding, load_data, save_data, save_json
 from tsas.engine.operator.cli.registry import OperatorRegistry
+from tsas.engine.operator.feature.selection.base import SupervisedFeatureSelector
 
 __all__ = ['create_registry', 'main']
 
@@ -59,11 +60,15 @@ def _build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument('--output', '-o', required=True, help='选择后特征输出文件')
     run_parser.add_argument('--eo-output', required=True, help='附加输出 JSON 文件')
     run_parser.add_argument('--load', default=None, help='已保存选择器模型目录')
+    run_parser.add_argument('--label-column', default=None,
+                            help='标签列名或列索引；提供时会从输入中剔除该列后再 run')
 
     fit_parser = subparsers.add_parser('fit', help='训练特征选择器')
     fit_parser.add_argument('--input', '-i', required=True, help='训练输入 CSV/TSV 文件')
     fit_parser.add_argument('--config', '-c', required=True, help='选择器配置文件')
     fit_parser.add_argument('--model-dir', '-m', required=True, help='模型保存目录')
+    fit_parser.add_argument('--label-column', default=None,
+                            help='标签列名或列索引；有监督选择器必须提供')
     return parser
 
 
@@ -110,6 +115,54 @@ def _load_operator(config_path: str, registry: OperatorRegistry, load_path: str 
     return instantiate_operator(op_config, registry)
 
 
+def _resolve_label_column(label_arg: str | None, df: pd.DataFrame) -> str | int | None:
+    """解析命令行传入的标签列参数。
+
+    如果是字符串且匹配列名，则返回列名；否则尝试解析为整数列索引。
+
+    Args:
+        label_arg: 命令行传入的标签列名或索引字符串。
+        df: 输入 DataFrame。
+
+    Returns:
+        str | int | None: 标签列名、列索引，或未指定时返回 None。
+
+    Raises:
+        ValueError: 列名不存在或索引越界时抛出。
+    """
+    if label_arg is None:
+        return None
+    if label_arg in df.columns:
+        return label_arg
+    try:
+        idx = int(label_arg)
+        if not (0 <= idx < df.shape[1]):
+            raise ValueError(f"标签列索引 {label_arg} 越界")
+        return idx
+    except ValueError as exc:
+        raise ValueError(f"输入数据缺少标签列 '{label_arg}'") from exc
+
+
+def _split_data_by_label(df: pd.DataFrame, label_col: str | int) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """从输入 DataFrame 中分离特征和标签。
+
+    Args:
+        df: 包含标签列的输入数据。
+        label_col: 标签列名或列索引。
+
+    Returns:
+        tuple[pd.DataFrame, pd.DataFrame]: (特征 DataFrame, 标签 DataFrame)。
+    """
+    if isinstance(label_col, str):
+        y = df[[label_col]]
+        x = df.drop(columns=[label_col])
+    else:
+        y = df.iloc[:, [label_col]]
+        col_name = df.columns[label_col]
+        x = df.drop(columns=[col_name])
+    return x, y
+
+
 def _handle_fit(registry: OperatorRegistry, args: argparse.Namespace) -> None:
     """处理选择器训练。
 
@@ -122,12 +175,25 @@ def _handle_fit(registry: OperatorRegistry, args: argparse.Namespace) -> None:
 
     Raises:
         TypeError: 非训练型选择器执行 ``fit`` 时抛出。
+        ValueError: 有监督选择器未提供 ``--label-column`` 时抛出。
     """
     data = load_data(args.input)
     operator = _load_operator(args.config, registry)
     if not isinstance(operator, LearnableOperatorMixin):
         raise TypeError(f'{type(operator).__name__} 不支持 fit')
-    operator.fit(data, None)
+
+    label_col = _resolve_label_column(args.label_column, data)
+    if label_col is not None:
+        x, y = _split_data_by_label(data, label_col)
+        if isinstance(operator, SupervisedFeatureSelector):
+            operator.fit(x, y)
+        else:
+            operator.fit(x, None)
+    else:
+        if isinstance(operator, SupervisedFeatureSelector):
+            raise ValueError(f'{type(operator).__name__} 是有监督选择器，必须提供 --label-column')
+        operator.fit(data, None)
+
     operator.save(args.model_dir)
 
 
@@ -143,7 +209,14 @@ def _handle_run(registry: OperatorRegistry, args: argparse.Namespace) -> None:
     """
     data = load_data(args.input)
     operator = _load_operator(args.config, registry, load_path=args.load)
-    output, eo = cast(tuple[NumericData, BaseModel], operator.run(data))
+
+    label_col = _resolve_label_column(args.label_column, data)
+    if label_col is not None:
+        x, _ = _split_data_by_label(data, label_col)
+    else:
+        x = data
+
+    output, eo = cast(tuple[NumericData, BaseModel], operator.run(x))
     save_data(cast(pd.DataFrame, output), args.output)
     save_json(eo.model_dump(mode='json'), args.eo_output)
 
