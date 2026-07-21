@@ -97,7 +97,7 @@ class CWDWSageSelectorConfig(BaseFeatureSelectorConfig):
     sample_balanced: bool = Field(default=False, description='是否对训练数据做 SMOTE 样本均衡')
     sage_batch_size: int = Field(default=512, ge=1, description='SAGE 批大小')
     sage_thresh: float = Field(default=0.05, ge=0.0, description='SAGE 收敛阈值')
-    sage_n_jobs: int = Field(default=8, ge=1, description='SAGE 并行任务数')
+    sage_n_jobs: int = Field(default=1, ge=1, description='SAGE 并行任务数')
     sage_bar: bool = Field(default=False, description='是否显示 SAGE 进度条')
     visualization: bool = Field(default=False, description='是否在 fit 阶段生成可视化图片')
     generate_csv: bool = Field(default=False, description='是否在 fit 阶段生成结果 CSV')

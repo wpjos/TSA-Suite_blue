@@ -17,9 +17,17 @@
 
 from __future__ import annotations
 
+import os
+
+# 在导入 numpy 等库之前设置线程数环境变量，保证各路径结果可复现
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+
 import argparse
 import json
-import os
 import sys
 import tempfile
 from pathlib import Path
