@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""验证 cwdw_sage CLI 包装、直接调用与 feature_selection_by_cwdw_sage.py 完整流水线结果是否一致。
+"""验证 cwdw_sage CLI 包装与 feature_selection_by_cwdw_sage.py 完整流水线结果是否一致。
 
 使用方式::
 
@@ -9,9 +9,8 @@
 说明：
     - 本脚本会对输入 CSV 做简单清洗（全部转数值、删除含 NaN 行、删除方差为 0 的特征列）。
     - CLI 路径：先 ``fit --label-column`` 训练并保存模型，再 ``run --load`` 加载运行。
-    - 直接路径：直接实例化 ``CWDWSageSelector``，调用 ``fit(x, y)`` 和 ``run(x)``。
     - 原始脚本路径：直接调用 ``feature_selection_by_cwdw_sage.run_pipeline``。
-    - 比较三者最终返回的 ``selected_indices``（原始输入列位置，按 SAGE 重要性排序）、
+    - 比较两者最终返回的 ``selected_indices``（原始输入列位置，按 SAGE 重要性排序）、
       ``ranked_features``、``proxy_model_name`` 与 ``task``。
 """
 
@@ -26,11 +25,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
-from tsas.engine.operator.feature.selection.cwdw_sage_selector import (
-    CWDWSageSelector,
-    CWDWSageSelectorConfig,
-)
 
 
 def clean_dataframe(df: pd.DataFrame, label_col: str) -> pd.DataFrame:
@@ -107,27 +101,6 @@ def run_cli_path(df: pd.DataFrame, label_col: str, seed: int) -> dict:
         ])
 
         return json.loads(eo_path.read_text(encoding='utf-8'))
-
-
-def run_direct_path(df: pd.DataFrame, label_col: str, seed: int) -> tuple[list[int], str, str, list[dict], dict[int, float]]:
-    """直接实例化 CWDWSageSelector，fit + run，返回原始列位置索引、任务类型、代理模型名、排序结果和 SAGE 值。"""
-    y = df[[label_col]]
-    x = df.drop(columns=[label_col])
-
-    op = CWDWSageSelector(
-        config=CWDWSageSelectorConfig(
-            task='auto',
-            sage_n_jobs=1,
-            random_state=seed,
-        )
-    )
-
-    np.random.seed(seed)
-    op.fit(x, y)
-    _, eo = op.run(x)
-
-    ranked = [item.model_dump() for item in eo.ranked_features]
-    return eo.selected_indices, eo.task, eo.proxy_model_name, ranked, eo.sage_values
 
 
 def run_original_path(df: pd.DataFrame, label_col: str) -> tuple[list[int], str, str, list[str], list[float]]:
@@ -252,7 +225,7 @@ def _compare_pair(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='验证 cwdw_sage 三条路径结果一致性')
+    parser = argparse.ArgumentParser(description='验证 cwdw_sage CLI 与原始脚本结果一致性')
     parser.add_argument('csv', help='输入 CSV 文件路径')
     parser.add_argument('--label', default='label', help='标签列名，默认 "label"')
     parser.add_argument('--seed', type=int, default=42, help='随机种子，用于 CWDM 打乱（原始脚本内部固定为 42）')
@@ -272,12 +245,6 @@ def main() -> int:
     print(f'CLI task: {cli_task}')
     print(f'CLI proxy_model_name: {cli_proxy}')
 
-    print('\n--- 直接调用 CWDWSageSelector ---')
-    direct_selected, direct_task, direct_proxy, direct_ranked, direct_sage_values = run_direct_path(df, args.label, args.seed)
-    print(f'Direct selected_indices: {direct_selected}')
-    print(f'Direct task: {direct_task}')
-    print(f'Direct proxy_model_name: {direct_proxy}')
-
     print('\n--- 原始脚本 feature_selection_by_cwdw_sage ---')
     original_selected, original_task, original_proxy, original_ranked, original_weights = run_original_path(df, args.label)
     print(f'Original selected_indices: {original_selected}')
@@ -289,39 +256,24 @@ def main() -> int:
     cli_sage_values = {int(k): float(v) for k, v in cli_sage_values_raw.items()}
     cli_weights = [cli_sage_values.get(i, float('nan')) for i in cli_selected]
 
-    direct_weights = [direct_sage_values[i] for i in direct_selected]
-
-    print('\n--- 三路 selected_indices 与 SAGE 评估值汇总（按重要性从高到低） ---')
+    print('\n--- 两路 selected_indices 与 SAGE 评估值汇总（按重要性从高到低） ---')
     print(f'CLI:      indices={cli_selected}')
     print(f'          weights={cli_weights}')
-    print(f'Direct:   indices={direct_selected}')
-    print(f'          weights={direct_weights}')
     print(f'Original: indices={original_selected}')
     print(f'          weights={original_weights}')
 
     print('\n--- 比较结果 ---')
-    ok = True
-    ok &= _compare_pair(
+    ok = _compare_pair(
         'CLI', cli_selected, cli_task, cli_proxy, cli_ranked,
-        'Direct', direct_selected, direct_task, direct_proxy, direct_ranked,
-    )
-    print()
-    ok &= _compare_pair(
-        'CLI', cli_selected, cli_task, cli_proxy, cli_ranked,
-        'Original', original_selected, original_task, original_proxy, original_ranked,
-    )
-    print()
-    ok &= _compare_pair(
-        'Direct', direct_selected, direct_task, direct_proxy, direct_ranked,
         'Original', original_selected, original_task, original_proxy, original_ranked,
     )
 
     if args.seed != 42:
         print('\n⚠️  提示：原始脚本 run_pipeline 内部固定 np.random.seed(42)，'
-              '当前 --seed 与原始脚本不一致，原始路径的结果可能无法与 CLI/Direct 严格对齐。')
+              '当前 --seed 与原始脚本不一致，原始路径的结果可能无法与 CLI 严格对齐。')
 
     if ok:
-        print('\n✅ 三条路径结果基本一致')
+        print('\n✅ 两条路径结果基本一致')
         print('   注：SAGE / 模型训练存在随机性，精确排名顺序可能略有差异。')
         return 0
     return 1
