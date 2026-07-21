@@ -338,6 +338,7 @@ class CWDWSageSelector(SupervisedFeatureSelector[CWDWSageSelectorExtraOutput, CW
                 task=task,
                 n_jobs=config.sage_n_jobs,
                 bar=config.sage_bar,
+                random_state=config.random_state,
             )
         )
         sage_train = sage_evaluator.evaluate(proxy_model, train_final, y_train).sage_values

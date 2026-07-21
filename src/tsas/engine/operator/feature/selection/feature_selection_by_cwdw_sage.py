@@ -2442,6 +2442,7 @@ class SAGEEvaluatorConfig:
         task (str): 任务类型，'Classification' | 'Regression'。
         n_jobs (int): 并行任务数。
         bar (bool): 是否显示进度条。
+        random_state (int | None): SAGE PermutationEstimator 随机种子。
     """
 
     def __init__(
@@ -2451,12 +2452,14 @@ class SAGEEvaluatorConfig:
         task: str = 'Regression',
         n_jobs: int = 8,
         bar: bool = False,
+        random_state: int | None = None,
     ) -> None:
         self.batch_size = batch_size
         self.thresh = thresh
         self.task = task
         self.n_jobs = n_jobs
         self.bar = bar
+        self.random_state = random_state
 
 
 class SAGEEvaluatorExtraOutput:
@@ -2527,7 +2530,9 @@ class SAGEEvaluator:
         else:
             loss = 'zero one'
 
-        estimator = sage.PermutationEstimator(imputer, loss, n_jobs=config.n_jobs)
+        estimator = sage.PermutationEstimator(
+            imputer, loss, n_jobs=config.n_jobs, random_state=config.random_state,
+        )
         sage_values = estimator(x_data, y, batch_size=config.batch_size, thresh=config.thresh, bar=config.bar)
 
         elapsed = time.time() - begin
@@ -2552,6 +2557,7 @@ def sage_value(
     task: str = 'Regression',
     n_jobs: int = 8,
     bar: bool = False,
+    random_state: int | None = None,
 ) -> sage.SageValues:
     """基于 SAGE 的特征重要性排序。
 
@@ -2564,6 +2570,7 @@ def sage_value(
         task (str): 任务类型，'Classification' | 'Regression'。
         n_jobs (int): 并行任务数。
         bar (bool): 是否显示进度条。
+        random_state (int | None): SAGE PermutationEstimator 随机种子。
 
     Returns:
         sage.SageValues: 特征重要性值。
@@ -2574,6 +2581,7 @@ def sage_value(
         task=task,
         n_jobs=n_jobs,
         bar=bar,
+        random_state=random_state,
     )
     evaluator = SAGEEvaluator(config=config)
     eo = evaluator.evaluate(model, x_data, y)
@@ -3086,19 +3094,19 @@ def run_pipeline(config: PipelineConfig) -> tuple[np.ndarray, np.ndarray, np.nda
         sage_train = sage_value(
             model_activation, train, y_train,
             batch_size=batch_size, thresh=thresh, task=task,
-            n_jobs=n_jobs, bar=bar,
+            n_jobs=n_jobs, bar=bar, random_state=RANDOM_STATE,
         )
 
         sage_val = sage_value(
             model_activation, val, y_val,
             batch_size=batch_size, thresh=thresh, task=task,
-            n_jobs=n_jobs, bar=bar,
+            n_jobs=n_jobs, bar=bar, random_state=RANDOM_STATE,
         )
 
         sage_test = sage_value(
             model_activation, test, y_test,
             batch_size=batch_size, thresh=thresh, task=task,
-            n_jobs=n_jobs, bar=bar,
+            n_jobs=n_jobs, bar=bar, random_state=RANDOM_STATE,
         )
 
         # ---- 第八步：画特征重要性对比图 ----
