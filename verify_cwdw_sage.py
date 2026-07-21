@@ -109,8 +109,8 @@ def run_cli_path(df: pd.DataFrame, label_col: str, seed: int) -> dict:
         return json.loads(eo_path.read_text(encoding='utf-8'))
 
 
-def run_direct_path(df: pd.DataFrame, label_col: str, seed: int) -> tuple[list[int], str, str, list[dict]]:
-    """直接实例化 CWDWSageSelector，fit + run，返回原始列位置索引、任务类型、代理模型名和排序结果。"""
+def run_direct_path(df: pd.DataFrame, label_col: str, seed: int) -> tuple[list[int], str, str, list[dict], dict[int, float]]:
+    """直接实例化 CWDWSageSelector，fit + run，返回原始列位置索引、任务类型、代理模型名、排序结果和 SAGE 值。"""
     y = df[[label_col]]
     x = df.drop(columns=[label_col])
 
@@ -127,11 +127,11 @@ def run_direct_path(df: pd.DataFrame, label_col: str, seed: int) -> tuple[list[i
     _, eo = op.run(x)
 
     ranked = [item.model_dump() for item in eo.ranked_features]
-    return eo.selected_indices, eo.task, eo.proxy_model_name, ranked
+    return eo.selected_indices, eo.task, eo.proxy_model_name, ranked, eo.sage_values
 
 
-def run_original_path(df: pd.DataFrame, label_col: str) -> tuple[list[int], str, str, list[str]]:
-    """直接调用 feature_selection_by_cwdw_sage.run_pipeline，返回结果。"""
+def run_original_path(df: pd.DataFrame, label_col: str) -> tuple[list[int], str, str, list[str], list[float]]:
+    """直接调用 feature_selection_by_cwdw_sage.run_pipeline，返回结果及 SAGE 评估值。"""
     from tsas.engine.operator.feature.selection.feature_selection_by_cwdw_sage import (
         PipelineConfig,
         run_pipeline,
@@ -177,7 +177,7 @@ def run_original_path(df: pd.DataFrame, label_col: str) -> tuple[list[int], str,
         task = 'Regression' if len(np.unique(df[label_col])) > 20 else 'Classification'
         proxy_model_name = 'xgboost' if task == 'Regression' else 'LGBMClassifier'
 
-        return original_indices, task, proxy_model_name, list(feature_importance_name)
+        return original_indices, task, proxy_model_name, list(feature_importance_name), [float(v) for v in feature_importance_value]
 
 
 def _compare_pair(
@@ -273,16 +273,31 @@ def main() -> int:
     print(f'CLI proxy_model_name: {cli_proxy}')
 
     print('\n--- 直接调用 CWDWSageSelector ---')
-    direct_selected, direct_task, direct_proxy, direct_ranked = run_direct_path(df, args.label, args.seed)
+    direct_selected, direct_task, direct_proxy, direct_ranked, direct_sage_values = run_direct_path(df, args.label, args.seed)
     print(f'Direct selected_indices: {direct_selected}')
     print(f'Direct task: {direct_task}')
     print(f'Direct proxy_model_name: {direct_proxy}')
 
     print('\n--- 原始脚本 feature_selection_by_cwdw_sage ---')
-    original_selected, original_task, original_proxy, original_ranked = run_original_path(df, args.label)
+    original_selected, original_task, original_proxy, original_ranked, original_weights = run_original_path(df, args.label)
     print(f'Original selected_indices: {original_selected}')
     print(f'Original task: {original_task}')
     print(f'Original proxy_model_name: {original_proxy}')
+
+    # 把 SAGE 评估值按 selected_indices 顺序对齐
+    cli_sage_values_raw = cli_eo.get('sage_values', {})
+    cli_sage_values = {int(k): float(v) for k, v in cli_sage_values_raw.items()}
+    cli_weights = [cli_sage_values.get(i, float('nan')) for i in cli_selected]
+
+    direct_weights = [direct_sage_values[i] for i in direct_selected]
+
+    print('\n--- 三路 selected_indices 与 SAGE 评估值汇总（按重要性从高到低） ---')
+    print(f'CLI:      indices={cli_selected}')
+    print(f'          weights={cli_weights}')
+    print(f'Direct:   indices={direct_selected}')
+    print(f'          weights={direct_weights}')
+    print(f'Original: indices={original_selected}')
+    print(f'          weights={original_weights}')
 
     print('\n--- 比较结果 ---')
     ok = True
