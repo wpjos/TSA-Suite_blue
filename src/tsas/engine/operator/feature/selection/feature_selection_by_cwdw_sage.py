@@ -2023,7 +2023,8 @@ def _train_svc(
     Returns:
         SVC: 训练好的模型。
     """
-    study = optuna.create_study(direction='maximize')
+    #study = optuna.create_study(direction='maximize')
+    study = optuna.create_study(direction='maximize', sampler=optuna.samplers.TPESampler(seed=42))
     study.optimize(
         lambda trial: _objective_svc(trial, X_combined, y_combined),
         n_trials=OPTUNA_N_TRIALS,
@@ -2064,14 +2065,15 @@ def _train_lgbm(
     """
     import lightgbm as lgb
 
-    study = optuna.create_study(direction='maximize')
+    #study = optuna.create_study(direction='maximize')
+    study = optuna.create_study(direction='maximize', sampler=optuna.samplers.TPESampler(seed=42))
     study.optimize(
         lambda trial: _objective_lgbm(trial, x_train, y_train, x_val, y_val),
         n_trials=OPTUNA_N_TRIALS,
     )
     logger.info(f'ClassificationTrainer LGBM 最佳超参数: {study.best_params}')
 
-    best_model = lgb.LGBMClassifier(**study.best_params, verbose=-1)
+    best_model = lgb.LGBMClassifier(**study.best_params, verbose=-1, random_state=42)
 
     acc = cross_val_score(best_model, X_combined, y_combined, cv=2, scoring='balanced_accuracy')
     logger.info(f'ClassificationTrainer LGBM 二折交叉验证 balanced_accuracy: {acc}')
@@ -2103,7 +2105,8 @@ def _train_random_forest(
     Returns:
         RandomForestClassifier: 训练好的模型。
     """
-    study = optuna.create_study(direction='maximize')
+    #study = optuna.create_study(direction='maximize')
+    study = optuna.create_study(direction='maximize', sampler=optuna.samplers.TPESampler(seed=42))
     study.optimize(
         lambda trial: _objective_rf(trial, X_combined, y_combined),
         n_trials=OPTUNA_N_TRIALS,
@@ -2142,7 +2145,8 @@ def _train_mlp(
     Returns:
         MLPClassifier: 训练好的模型。
     """
-    study = optuna.create_study(direction='maximize')
+    #study = optuna.create_study(direction='maximize')
+    study = optuna.create_study(direction='maximize', sampler=optuna.samplers.TPESampler(seed=42))
     study.optimize(
         lambda trial: _objective_mlp(trial, X_combined, y_combined),
         n_trials=OPTUNA_N_TRIALS,
@@ -2188,7 +2192,8 @@ def _train_knn(
     Returns:
         KNeighborsClassifier: 训练好的模型。
     """
-    study = optuna.create_study(direction='maximize')
+    #study = optuna.create_study(direction='maximize')
+    study = optuna.create_study(direction='maximize', sampler=optuna.samplers.TPESampler(seed=42))
     study.optimize(
         lambda trial: _objective_knn(trial, X_combined, y_combined),
         n_trials=OPTUNA_N_TRIALS,
@@ -2268,6 +2273,7 @@ def _objective_lgbm(
         'objective': 'binary',
         'metric': 'binary_error',
         'verbosity': -1,
+        'random_state': 42,
         'boosting_type': trial.suggest_categorical('boosting', ['gbdt', 'dart']),
         'num_leaves': trial.suggest_int('num_leaves', 20, 300),
         'learning_rate': trial.suggest_loguniform('learning_rate', 0.005, 0.2),
@@ -2962,6 +2968,9 @@ def run_pipeline(config: PipelineConfig) -> tuple[np.ndarray, np.ndarray, np.nda
     # Windows 多线程兼容
     joblib.parallel_backend('threading')
 
+    # 固定随机种子确保可复现
+    np.random.seed(42)
+
     logger.info(f'main 流水线配置: {config}')
 
     # 展开配置
@@ -3039,7 +3048,7 @@ def run_pipeline(config: PipelineConfig) -> tuple[np.ndarray, np.ndarray, np.nda
                 n_iterations=100,
                 k_features='auto',
                 final_k=min(CWDM_FINAL_K_MAX, train.shape[1]),
-                random_state=None,
+                random_state=42,
                 n_blocks=5,
                 data_threshold=10_000_000,
             )

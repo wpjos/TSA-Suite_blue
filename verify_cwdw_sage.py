@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""验证 cwdw_sage CLI 包装与 feature_selection_by_cwdw_sage.py 完整流水线结果是否一致。
+"""验证 cwdw_sage CLI 包装、直接调用与 feature_selection_by_cwdw_sage.py 完整流水线结果是否一致。
 
 使用方式::
 
@@ -10,7 +10,8 @@
     - 本脚本会对输入 CSV 做简单清洗（全部转数值、删除含 NaN 行、删除方差为 0 的特征列）。
     - CLI 路径：先 ``fit --label-column`` 训练并保存模型，再 ``run --load`` 加载运行。
     - 直接路径：直接实例化 ``CWDWSageSelector``，调用 ``fit(x, y)`` 和 ``run(x)``。
-    - 比较两者最终返回的 ``selected_indices``（原始输入列位置，按 SAGE 重要性排序）、
+    - 原始脚本路径：直接调用 ``feature_selection_by_cwdw_sage.run_pipeline``。
+    - 比较三者最终返回的 ``selected_indices``（原始输入列位置，按 SAGE 重要性排序）、
       ``ranked_features``、``proxy_model_name`` 与 ``task``。
 """
 
@@ -18,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -77,7 +79,7 @@ def run_cli_path(df: pd.DataFrame, label_col: str, seed: int) -> dict:
                     'convergence_stability_threshold': 0.001,
                     'convergence_accuracy_threshold': 0.75,
                     'sage_n_jobs': 1,
-                    'random_state': 42,
+                    'random_state': seed,
                 },
             }
         }
@@ -116,7 +118,7 @@ def run_direct_path(df: pd.DataFrame, label_col: str, seed: int) -> tuple[list[i
         config=CWDWSageSelectorConfig(
             task='auto',
             sage_n_jobs=1,
-            random_state=42,
+            random_state=seed,
         )
     )
 
@@ -128,11 +130,132 @@ def run_direct_path(df: pd.DataFrame, label_col: str, seed: int) -> tuple[list[i
     return eo.selected_indices, eo.task, eo.proxy_model_name, ranked
 
 
+def run_original_path(df: pd.DataFrame, label_col: str) -> tuple[list[int], str, str, list[str]]:
+    """直接调用 feature_selection_by_cwdw_sage.run_pipeline，返回结果。"""
+    from tsas.engine.operator.feature.selection.feature_selection_by_cwdw_sage import (
+        PipelineConfig,
+        run_pipeline,
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        dataset_dir = tmp / 'dataset'
+        dataset_dir.mkdir()
+        output_dir = tmp / 'output'
+        output_dir.mkdir()
+
+        csv_path = dataset_dir / 'input.csv'
+        df.to_csv(csv_path, index=False)
+
+        config = PipelineConfig(
+            task='Classification',  # run_pipeline 内部会根据 label 唯一值数量重新判断
+            proxy_model='LGBMClassifier',
+            auto_selected_model=False,
+            sample_balanced=False,
+            batch_size=512,
+            thresh=0.05,
+            n_jobs=1,
+            bar=False,
+            cwdm=True,
+            dataset=str(dataset_dir),
+            output=str(output_dir),
+            filename='input.csv',
+        )
+
+        # run_pipeline 会把输出写到当前工作目录，切换到临时目录避免污染仓库
+        original_cwd = os.getcwd()
+        os.chdir(tmpdir)
+        try:
+            feature_importance_value, feature_importance_index, feature_importance_name = run_pipeline(config)
+        finally:
+            os.chdir(original_cwd)
+
+        # run_pipeline 返回的是最终保留特征名，映射回原始列位置
+        original_indices = [int(df.columns.get_loc(name)) for name in feature_importance_name]
+
+        # 推断任务类型与代理模型名称（与 run_pipeline 内部逻辑保持一致）
+        task = 'Regression' if len(np.unique(df[label_col])) > 20 else 'Classification'
+        proxy_model_name = 'xgboost' if task == 'Regression' else 'LGBMClassifier'
+
+        return original_indices, task, proxy_model_name, list(feature_importance_name)
+
+
+def _compare_pair(
+    name_a: str,
+    a_selected: list[int],
+    a_task: str,
+    a_proxy: str,
+    a_ranked: list,
+    name_b: str,
+    b_selected: list[int],
+    b_task: str,
+    b_proxy: str,
+    b_ranked: list,
+) -> bool:
+    """严格比较两路结果（特征按重要到不重要的顺序），打印差异并返回是否一致。"""
+    ok = True
+
+    # 严格按顺序比较 selected_indices
+    if a_selected == b_selected:
+        print(f'✅ {name_a} vs {name_b}: selected_indices 顺序完全一致')
+    else:
+        ok = False
+        print(f'❌ {name_a} vs {name_b}: selected_indices 顺序不一致')
+
+        # 找出第一个不同的位置
+        min_len = min(len(a_selected), len(b_selected))
+        diff_found = False
+        for i in range(min_len):
+            if a_selected[i] != b_selected[i]:
+                print(f'   第一个不同位置: index={i}, {name_a}={a_selected[i]}, {name_b}={b_selected[i]}')
+                diff_found = True
+                break
+        if not diff_found and len(a_selected) != len(b_selected):
+            print(f'   长度不一致: {name_a}={len(a_selected)}, {name_b}={len(b_selected)}')
+
+        # 退一步检查集合是否一致
+        a_set = set(a_selected)
+        b_set = set(b_selected)
+        if a_set == b_set:
+            print(f'   ⚠️  集合相同，仅排名顺序不同')
+        else:
+            print(f'   {name_a} 多选: {sorted(a_set - b_set)}')
+            print(f'   {name_b} 多选: {sorted(b_set - a_set)}')
+
+    if a_task != b_task:
+        ok = False
+        print(f'❌ {name_a} vs {name_b}: task 不一致 ({name_a}={a_task}, {name_b}={b_task})')
+    else:
+        print(f'✅ {name_a} vs {name_b}: task 一致')
+
+    if a_proxy != b_proxy:
+        ok = False
+        print(f'❌ {name_a} vs {name_b}: proxy_model_name 不一致 ({name_a}={a_proxy}, {name_b}={b_proxy})')
+    else:
+        print(f'✅ {name_a} vs {name_b}: proxy_model_name 一致')
+
+    if len(a_ranked) != len(b_ranked):
+        ok = False
+        print(f'❌ {name_a} vs {name_b}: ranked_features 长度不一致 ({name_a}={len(a_ranked)}, {name_b}={len(b_ranked)})')
+    else:
+        print(f'✅ {name_a} vs {name_b}: ranked_features 长度一致')
+
+    # Top-K 也按顺序比较
+    top_k = min(3, len(a_selected), len(b_selected))
+    if top_k > 0:
+        if a_selected[:top_k] == b_selected[:top_k]:
+            print(f'   Top-{top_k} 顺序完全一致: {a_selected[:top_k]}')
+        else:
+            print(f'   Top-{top_k} 顺序不一致: {name_a}={a_selected[:top_k]}, {name_b}={b_selected[:top_k]}')
+
+    return ok
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description='验证 cwdw_sage CLI 与原脚本完整流水线结果一致性')
+    parser = argparse.ArgumentParser(description='验证 cwdw_sage 三条路径结果一致性')
     parser.add_argument('csv', help='输入 CSV 文件路径')
     parser.add_argument('--label', default='label', help='标签列名，默认 "label"')
-    parser.add_argument('--seed', type=int, default=42, help='随机种子，用于 CWDM 打乱')
+    parser.add_argument('--seed', type=int, default=42, help='随机种子，用于 CWDM 打乱（原始脚本内部固定为 42）')
     args = parser.parse_args()
 
     df = pd.read_csv(args.csv)
@@ -155,49 +278,35 @@ def main() -> int:
     print(f'Direct task: {direct_task}')
     print(f'Direct proxy_model_name: {direct_proxy}')
 
+    print('\n--- 原始脚本 feature_selection_by_cwdw_sage ---')
+    original_selected, original_task, original_proxy, original_ranked = run_original_path(df, args.label)
+    print(f'Original selected_indices: {original_selected}')
+    print(f'Original task: {original_task}')
+    print(f'Original proxy_model_name: {original_proxy}')
+
     print('\n--- 比较结果 ---')
     ok = True
+    ok &= _compare_pair(
+        'CLI', cli_selected, cli_task, cli_proxy, cli_ranked,
+        'Direct', direct_selected, direct_task, direct_proxy, direct_ranked,
+    )
+    print()
+    ok &= _compare_pair(
+        'CLI', cli_selected, cli_task, cli_proxy, cli_ranked,
+        'Original', original_selected, original_task, original_proxy, original_ranked,
+    )
+    print()
+    ok &= _compare_pair(
+        'Direct', direct_selected, direct_task, direct_proxy, direct_ranked,
+        'Original', original_selected, original_task, original_proxy, original_ranked,
+    )
 
-    # 由于 SAGE / 代理模型训练存在随机性，exact 排名可能不一致，
-    # 因此主要比较集合、任务类型、代理模型名和排序长度。
-    cli_set = set(cli_selected)
-    direct_set = set(direct_selected)
-    if cli_set != direct_set:
-        ok = False
-        print('❌ selected_indices 集合不一致')
-        print(f'CLI 多选: {sorted(cli_set - direct_set)}')
-        print(f'直接调用多选: {sorted(direct_set - cli_set)}')
-    else:
-        print('✅ selected_indices 集合一致')
-
-    if cli_task != direct_task:
-        ok = False
-        print(f'❌ task 不一致: CLI={cli_task}, Direct={direct_task}')
-    else:
-        print('✅ task 一致')
-
-    if cli_proxy != direct_proxy:
-        ok = False
-        print(f'❌ proxy_model_name 不一致: CLI={cli_proxy}, Direct={direct_proxy}')
-    else:
-        print('✅ proxy_model_name 一致')
-
-    if len(cli_ranked) != len(direct_ranked):
-        ok = False
-        print(f'❌ ranked_features 长度不一致: CLI={len(cli_ranked)}, Direct={len(direct_ranked)}')
-    else:
-        print('✅ ranked_features 长度一致')
-
-    # 若集合相同，进一步比较 Top-3 重叠情况作为稳定性参考
-    if cli_set == direct_set:
-        top_k = min(3, len(cli_selected))
-        cli_top = set(cli_selected[:top_k])
-        direct_top = set(direct_selected[:top_k])
-        common_top = cli_top & direct_top
-        print(f'Top-{top_k} 重叠: {len(common_top)}/{top_k} ({sorted(common_top)})')
+    if args.seed != 42:
+        print('\n⚠️  提示：原始脚本 run_pipeline 内部固定 np.random.seed(42)，'
+              '当前 --seed 与原始脚本不一致，原始路径的结果可能无法与 CLI/Direct 严格对齐。')
 
     if ok:
-        print('\n✅ CLI 与直接调用的完整流水线结果基本一致')
+        print('\n✅ 三条路径结果基本一致')
         print('   注：SAGE / 模型训练存在随机性，精确排名顺序可能略有差异。')
         return 0
     return 1

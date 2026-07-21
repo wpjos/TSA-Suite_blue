@@ -208,6 +208,9 @@ class CWDWSageSelector(SupervisedFeatureSelector[CWDWSageSelectorExtraOutput, CW
         )
 
         config = self._selector_config()
+        if config.random_state is not None:
+            np.random.seed(config.random_state)
+
         task = self._resolve_task(y, config)
 
         # 1. 样本均衡（与原脚本 DataLoader 行为一致：在划分前对整个数据集做 SMOTE）
