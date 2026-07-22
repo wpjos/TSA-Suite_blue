@@ -25,22 +25,55 @@ import numpy as np
 import pandas as pd
 
 
+_TIME_KEYWORDS = ['时间', 'time', 'date', '日期', 'day', 'month', 'year', 'Time', 'stamp']
+
+
+def _identify_columns(df: pd.DataFrame) -> tuple[list[str], list[str]]:
+    """识别时间列和非数值列，与 feature_selection_by_cwdw_sage.py 保持一致。"""
+    non_numeric_columns = [
+        col for col in df.columns if not pd.api.types.is_numeric_dtype(df[col])
+    ]
+    time_columns = [
+        col for col in non_numeric_columns
+        if any(kw.lower() in col.lower() for kw in _TIME_KEYWORDS)
+    ]
+    return time_columns, non_numeric_columns
+
+
 def clean_dataframe(df: pd.DataFrame, label_col: str) -> pd.DataFrame:
-    """对输入 DataFrame 做简单清洗，保持列顺序不变。"""
+    """对输入 DataFrame 做清洗，逻辑与 feature_selection_by_cwdw_sage.py 的 DataLoader 保持一致。"""
     if label_col not in df.columns:
         raise ValueError(f"输入数据缺少标签列 '{label_col}'")
 
-    df = df.apply(lambda col: pd.to_numeric(col, errors='coerce'))
-    df = df.dropna(axis=1, how='all')
+    # 1. 将 object 列尝试转为数值
+    df = df.apply(
+        lambda col: pd.to_numeric(col, errors='coerce') if col.dtype == object else col
+    )
 
+    # 2. 去除时间列和非数值列
+    time_columns, non_numeric_columns = _identify_columns(df)
+    df = df.drop(columns=time_columns, errors='ignore')
+    df = df.drop(columns=non_numeric_columns, errors='ignore')
+
+    # 3. 检查 label 列
+    if label_col not in df.columns:
+        raise ValueError(f"清洗后数据缺少标签列 '{label_col}'")
+    if len(set(df[label_col])) < 2:
+        raise ValueError(f"标签列 '{label_col}' 类型少于 2 类")
+
+    # 4. 删除全空列、含 NaN 行、零方差列
+    df = df.dropna(axis=1, how='all')
+    df = df.dropna(axis=0, how='any')
     zero_std_cols = [c for c in df.columns if c != label_col and df[c].std() <= 0]
     if zero_std_cols:
         df = df.drop(columns=zero_std_cols)
 
-    df = df.dropna(axis=0, how='any')
-
     if label_col not in df.columns:
         raise ValueError(f"清洗后标签列 '{label_col}' 丢失，请检查数据")
+
+    # 5. 与 DataLoader 保持一致：label 中 -1 映射为 0
+    df[label_col] = df[label_col].to_numpy().copy()
+    df.loc[df[label_col] == -1, label_col] = 0
 
     return df
 
@@ -126,8 +159,10 @@ def main() -> int:
     cli_sage_values_raw = cli_eo.get('sage_values', {})
     cli_sage_values = {int(k): float(v) for k, v in cli_sage_values_raw.items()}
     cli_weights = [cli_sage_values.get(i, float('nan')) for i in cli_selected]
+    cli_names = [item['feat_name'] for item in cli_ranked]
 
     print('\n--- CLI selected_indices 与 SAGE 评估值汇总（按重要性从高到低） ---')
+    print(f'names={cli_names}')
     print(f'indices={cli_selected}')
     print(f'weights={cli_weights}')
 
