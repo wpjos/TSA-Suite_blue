@@ -73,6 +73,9 @@ test = [
     "pytest>=7.0",
 ]
 
+[project.scripts]
+tsas = "tsas.cli:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/tsas"]
 
