@@ -320,6 +320,12 @@ def _handle_fit(registry: OperatorRegistry, args: argparse.Namespace) -> None:
         print(f"算子 '{op_instance.name()}' 不需要训练")
         return
 
+    # 加载 chunk_ids（如果提供）
+    if args.chunk_ids:
+        chunk_df = pd.read_csv(args.chunk_ids, header=None)
+        chunk_ids = chunk_df.iloc[:, 0].to_numpy()
+        op_instance.set_chunk_ids(chunk_ids)
+
     # 选择输入列
     op_input = _select_columns(df, input_columns)
 

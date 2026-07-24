@@ -1,0 +1,19 @@
+{
+  "seq_len": 160,
+  "horizon": 40,
+  "target_idx": -1,
+  "alphas": [
+    0.1,
+    1.0,
+    10.0,
+    100.0
+  ],
+  "fit_intercept": true,
+  "solver": "lsqr",
+  "standardize": true,
+  "train_ratio": 0.7,
+  "val_ratio": 0.15,
+  "train_sample_step": 16,
+  "val_sample_step": 4,
+  "seed": 42
+}
